@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/sirin-interact/tmrlife/server/internal/auth"
+	"github.com/sirin-interact/tmrlife/server/internal/phrases"
 	"github.com/sirin-interact/tmrlife/server/internal/store/db"
 )
 
@@ -34,7 +35,11 @@ type SettingsReader interface {
 type handlers struct {
 	auth     AuthService
 	settings SettingsReader
-	cookies  sessionCookies
+	// diaries는 일기장 경로가 기록을 읽고 쓰는 자리다.
+	diaries *diaryService
+	// phrases는 도움 자원 목록이 오는 곳이다. 대화 채널이 보내는 목록과 같은 자료다.
+	phrases *phrases.Catalogue
+	cookies sessionCookies
 	// authTimeout은 가입과 로그인 한 번에 주는 시간이다.
 	authTimeout time.Duration
 }

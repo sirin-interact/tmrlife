@@ -61,8 +61,15 @@ func run(ctx context.Context, stdout, stderr io.Writer) int {
 	}
 	defer deps.Close()
 
-	// 어떤 작업을 맡는지는 app이 모아 준다. 지금은 끝난 세션을 한 시간마다 지우는 작업 하나다.
-	options, err := deps.WorkerOptions(ctx)
+	// 분석에 쓰는 언어 모델이 없으면 일기 초안 작업이 등록되지 않는다. 모델을 만들지 못하면 뜨지 않는다.
+	models, err := deps.NewModels(ctx)
+	if err != nil {
+		logger.LogAttrs(ctx, slog.LevelError, "build language models", slog.String("error", err.Error()))
+		return exitFailure
+	}
+
+	// 어떤 작업을 맡는지는 app이 모아 준다. 끝난 세션 지우기, 일기 초안, 버려진 대화 닫기다.
+	options, err := deps.WorkerOptions(ctx, app.WithAnalysisModel(models.Analysis))
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "collect workers", slog.String("error", err.Error()))
 		return exitFailure

@@ -20,6 +20,7 @@ import (
 	"github.com/sirin-interact/tmrlife/server/internal/clock"
 	"github.com/sirin-interact/tmrlife/server/internal/crypto"
 	"github.com/sirin-interact/tmrlife/server/internal/logging"
+	"github.com/sirin-interact/tmrlife/server/internal/sealing"
 	"github.com/sirin-interact/tmrlife/server/internal/store"
 	"github.com/sirin-interact/tmrlife/server/internal/testdb"
 )
@@ -92,11 +93,34 @@ func (b *syncBuffer) lines(t *testing.T, msg string) []map[string]any {
 	return out
 }
 
+// newSealers는 그 저장소와 시계로 사용자별 Sealer를 내주는 쪽을 만든다.
+func newSealers(t *testing.T, st *store.Store, clk clock.Clock) *sealing.Sealers {
+	t.Helper()
+	ring, err := crypto.NewKeyRing(1, map[int][]byte{1: bytes.Repeat([]byte{0x11}, 32)})
+	require.NoError(t, err)
+	cache, err := crypto.NewKeyCache(crypto.KeyCacheOptions{MaxEntries: 16, MaxAge: 10 * time.Minute, Now: clk.Now})
+	require.NoError(t, err)
+	sealers, err := sealing.New(st.Queries(), ring, cache)
+	require.NoError(t, err)
+	return sealers
+}
+
+// withOfflineRecords는 기록을 읽는 경로로 요청을 보내지 않는 시험에 저장소 자리를 채운다.
+// 풀이 없으므로 그 경로로 요청이 가면 그때 실패한다. 미들웨어와 인증만 보는 시험이 쓴다.
+func withOfflineRecords(t *testing.T, opts *Options) {
+	t.Helper()
+	st := store.New(nil)
+	opts.Store = st
+	opts.Sealers = newSealers(t, st, clock.NewFake(baseTime))
+}
+
 // testServer는 진짜 DB와 가짜 시계 위에, 운영과 같은 길(New)로 만든 서버다.
 type testServer struct {
 	echo    *echo.Echo
 	clock   *clock.Fake
 	pool    *pgxpool.Pool
+	store   *store.Store
+	sealers *sealing.Sealers
 	logs    *syncBuffer
 	cookies sessionCookies
 	// bodies에는 이 서버가 내보낸 모든 응답 본문이 쌓인다. 새어 나가면 안 되는 값을 찾을 때 쓴다.
@@ -114,6 +138,7 @@ func newTestServer(t *testing.T, mutate func(*Options)) *testServer {
 
 	ring, err := crypto.NewKeyRing(1, map[int][]byte{1: bytes.Repeat([]byte{0x11}, 32)})
 	require.NoError(t, err)
+	sealers := newSealers(t, st, clk)
 	sessions, err := auth.NewSessions(st, clk, testSessionConfig)
 	require.NoError(t, err)
 	// 해시가 받아 주는 가장 싼 값이다. 시험을 빨리 돌리려는 것이다.
@@ -130,6 +155,8 @@ func newTestServer(t *testing.T, mutate func(*Options)) *testServer {
 		DB:           pool,
 		Auth:         service,
 		Settings:     st.Queries(),
+		Store:        st,
+		Sealers:      sealers,
 		Cookie:       CookieConfig{Name: "naeil_session", Secure: false, MaxAge: testSessionConfig.AbsoluteLifetime},
 		PublicOrigin: testOrigin,
 		RateLimits:   generousLimits,
@@ -142,7 +169,10 @@ func newTestServer(t *testing.T, mutate func(*Options)) *testServer {
 	cookies, err := newSessionCookies(opts.Cookie)
 	require.NoError(t, err)
 
-	return &testServer{echo: e, clock: clk, pool: pool, logs: logs, cookies: cookies, bodies: &syncBuffer{}}
+	return &testServer{
+		echo: e, clock: clk, pool: pool, store: st, sealers: sealers,
+		logs: logs, cookies: cookies, bodies: &syncBuffer{},
+	}
 }
 
 // request는 시험이 보내는 요청 하나다.

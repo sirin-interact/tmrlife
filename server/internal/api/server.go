@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/netip"
 	"strings"
 	"time"
@@ -14,11 +15,21 @@ import (
 
 	"github.com/sirin-interact/tmrlife/server/internal/clock"
 	"github.com/sirin-interact/tmrlife/server/internal/httpserver"
+	"github.com/sirin-interact/tmrlife/server/internal/phrases"
+	"github.com/sirin-interact/tmrlife/server/internal/sealing"
+	"github.com/sirin-interact/tmrlife/server/internal/store"
 )
 
 const (
 	// pathPrefix 아래의 모든 경로가 이 패키지의 미들웨어를 거친다.
 	pathPrefix = "/api"
+
+	// wsPathPrefix 아래에는 명세의 paths에 적을 수 없는 경로(대화 소켓)가 붙는다.
+	// 같은 미들웨어 묶음을 이 앞머리에도 건다. 둘이 어긋나면 소켓만 검사를 건너뛰게 된다.
+	wsPathPrefix = "/ws"
+
+	// ConversationPath는 대화 채널의 경로다. 웹앱, 개발 서버의 프록시, 앞단의 설정이 모두 이 값을 쓴다.
+	ConversationPath = wsPathPrefix + "/v1/conversation"
 
 	// DefaultBodyLimitBytes는 JSON 본문의 기본 상한이다. 지금 받는 본문은 모두 1 KiB 안팎이다.
 	DefaultBodyLimitBytes int64 = 64 << 10
@@ -43,6 +54,12 @@ type Options struct {
 
 	Auth     AuthService
 	Settings SettingsReader
+	// Store와 Sealers는 일기 경로가 기록을 읽고 쓰는 데 쓴다.
+	Store   *store.Store
+	Sealers *sealing.Sealers
+	// Conversation이 있으면 대화 소켓을 ConversationPath에 붙인다.
+	// 없으면 그 경로는 열리지 않는다. 언어 모델을 붙이지 않은 실행과 REST만 보는 시험을 위해 남겨 둔 길이다.
+	Conversation *Conversation
 
 	Cookie CookieConfig
 	// PublicOrigin은 웹앱이 열리는 출처다. 다른 출처에서 온 상태 변경 요청을 막는 데 쓴다.
@@ -78,7 +95,7 @@ func New(opts Options) (*echo.Echo, error) {
 	return e, nil
 }
 
-// Register는 /api 아래의 미들웨어와 경로를 e에 붙인다. /healthz와 /readyz는 /api 밖에 있어서 이 미들웨어를 거치지 않는다.
+// Register는 /api와 /ws 아래의 미들웨어와 경로를 e에 붙인다. /healthz와 /readyz는 둘 다의 밖에 있어서 이 미들웨어를 거치지 않는다.
 //
 // 미들웨어의 순서가 뜻을 가진다. 바깥부터:
 //
@@ -88,12 +105,20 @@ func New(opts Options) (*echo.Echo, error) {
 // 요청 기한은 DB를 처음 보는 세션 읽기 바로 앞에서 시작한다. 본문을 느리게 보내는 요청은 서버의 읽기 제한 시간이 이미 막는다.
 // 시도 한도는 본문의 이메일을 봐야 해서 검증 뒤에 온다.
 //
-// 돌려주는 그룹에는 명세에 적을 수 없는 경로(WebSocket)를 붙인다. 그런 경로도 세션 읽기까지의 미들웨어를 똑같이 거친다.
-// 명세 검증과 그에 딸린 로그인 확인, 요청 기한은 거치지 않으므로, 로그인이 필요하면 RequireAuth를 직접 붙인다.
+// # 묶음을 한 번만 만드는 이유
 //
-// 그런 경로를 e에 바로 붙이지 않는다. 이 그룹은 /api 아래에만 걸려 있어서, 바깥에 붙인 경로(예: /ws)는
+// 대화 소켓의 경로(/ws/v1/conversation)는 명세의 paths에 적을 수 없다. 그렇다고 e에 바로 붙이면
 // 다른 출처 막기, 클라이언트 주소, 세션 읽기를 하나도 거치지 않는다. 연결을 여는 요청은 GET이라서 눈에 띄는 오류 없이 열리고,
-// 같은 사이트의 다른 하위 도메인이 사용자의 세션으로 대화 소켓을 열 수 있게 된다. 소켓도 /api 아래(이 그룹)에 둔다.
+// 같은 사이트의 다른 하위 도메인이 사용자의 세션으로 대화 소켓을 열 수 있게 된다.
+//
+// 그래서 미들웨어 묶음을 여기서 한 번만 만들고 /api와 /ws 두 앞머리에 똑같이 건다.
+// 한쪽에만 미들웨어를 더하는 실수로 둘이 어긋날 수 없다. 명세 검증과 요청 기한은 명세의 경로에만 걸리므로(inSpec),
+// 소켓은 같은 묶음을 거치면서도 검증기에 막히거나 기한을 받지 않는다. 로그인 확인은 소켓 쪽에서 직접 붙인다(RequireAuth).
+//
+// 대화 소켓을 주지 않아도 /ws 그룹은 만든다. 그룹에 미들웨어가 있으면 Echo가 그 앞머리의 모든 경로에
+// 404 경로를 함께 등록하므로, 경로가 없는 동안에도 다른 출처에서 온 요청은 404가 아니라 403으로 막힌다.
+//
+// 돌려주는 그룹이 그 /ws다. 명세에 적을 수 없는 경로를 더 붙일 자리이고, 로그인이 필요하면 RequireAuth를 직접 붙인다.
 func Register(e *echo.Echo, opts Options) (*echo.Group, error) {
 	switch {
 	case opts.Logger == nil:
@@ -104,6 +129,10 @@ func Register(e *echo.Echo, opts Options) (*echo.Group, error) {
 		return nil, errors.New("api: auth service is required")
 	case opts.Settings == nil:
 		return nil, errors.New("api: settings reader is required")
+	case opts.Store == nil:
+		return nil, errors.New("api: store is required")
+	case opts.Sealers == nil:
+		return nil, errors.New("api: sealers are required")
 	}
 	bodyLimit := opts.BodyLimitBytes
 	if bodyLimit <= 0 {
@@ -129,6 +158,10 @@ func Register(e *echo.Echo, opts Options) (*echo.Group, error) {
 	limiter, err := newAuthRateLimiter(opts.Clock, opts.Logger, opts.RateLimits, opts.Auth.CheckSignup)
 	if err != nil {
 		return nil, fmt.Errorf("api: rate limits: %w", err)
+	}
+	catalogue, err := phrases.Load()
+	if err != nil {
+		return nil, fmt.Errorf("api: load phrases: %w", err)
 	}
 
 	spec, err := GetSpec()
@@ -156,7 +189,8 @@ func Register(e *echo.Echo, opts Options) (*echo.Group, error) {
 		return nil, err
 	}
 
-	group := e.Group(pathPrefix,
+	// 묶음은 여기서 한 번만 만든다. 아래의 두 앞머리가 같은 것을 받는다.
+	chain := []echo.MiddlewareFunc{
 		noStore(),
 		crossOrigin,
 		clientInfo(newClientIPResolver(opts.TrustedProxies), opts.Logger),
@@ -164,10 +198,19 @@ func Register(e *echo.Echo, opts Options) (*echo.Group, error) {
 		requestDeadline(requestTimeout, inSpec),
 		loadSession(opts.Auth, cookies),
 		validator,
-	)
+	}
+	group := e.Group(pathPrefix, chain...)
+	wsGroup := e.Group(wsPathPrefix, chain...)
 
 	handler := NewStrictHandler(
-		&handlers{auth: opts.Auth, settings: opts.Settings, cookies: cookies, authTimeout: authTimeout},
+		&handlers{
+			auth:        opts.Auth,
+			settings:    opts.Settings,
+			diaries:     &diaryService{store: opts.Store, sealers: opts.Sealers, clock: opts.Clock},
+			phrases:     catalogue,
+			cookies:     cookies,
+			authTimeout: authTimeout,
+		},
 		[]StrictMiddlewareFunc{limiter.middleware},
 	)
 	if err := registerOperations(group, handler, protectedOperations(spec), specRoutes); err != nil {
@@ -177,7 +220,32 @@ func Register(e *echo.Echo, opts Options) (*echo.Group, error) {
 		// 검증을 건너뛰는 경로가 생긴다는 뜻이다. 조용히 넘어가지 않는다.
 		return nil, fmt.Errorf("api: the spec has %d operations but %d routes were registered", operations, len(specRoutes))
 	}
-	return group, nil
+	if err := registerConversation(wsGroup, opts.Conversation); err != nil {
+		return nil, err
+	}
+	return wsGroup, nil
+}
+
+// registerConversation은 대화 소켓을 /ws 그룹에 붙인다. 소켓을 주지 않았으면 아무것도 붙이지 않는다.
+// 명세 검증이 걸리지 않는 경로라서 로그인 확인을 여기서 직접 붙인다.
+func registerConversation(wsGroup *echo.Group, conversation *Conversation) error {
+	if conversation == nil {
+		return nil
+	}
+	path, ok := strings.CutPrefix(ConversationPath, wsPathPrefix)
+	if !ok {
+		return fmt.Errorf("api: conversation path %s is outside of %s", ConversationPath, wsPathPrefix)
+	}
+	_, err := wsGroup.AddRoute(echo.Route{
+		Method:      http.MethodGet,
+		Path:        path,
+		Handler:     conversation.serve,
+		Middlewares: []echo.MiddlewareFunc{RequireAuth()},
+	})
+	if err != nil {
+		return fmt.Errorf("api: register %s: %w", ConversationPath, err)
+	}
+	return nil
 }
 
 func routeKey(method, path string) string {

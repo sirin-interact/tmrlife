@@ -111,7 +111,7 @@ func serve(ctx context.Context, stdout, stderr io.Writer) int {
 	defer deps.Close()
 	logger.LogAttrs(ctx, slog.LevelInfo, "dependencies ready", slog.Any("prompts", deps.Prompts.Tasks()))
 
-	// 경로가 기대는 것(인증 서비스, 명세, 시도 한도)이 틀렸으면 첫 요청이 아니라 여기서 드러난다.
+	// 경로가 기대는 것(인증 서비스, 언어 모델, 지시문, 명세, 시도 한도)이 틀렸으면 첫 요청이 아니라 여기서 드러난다.
 	handler, err := deps.NewHTTPHandler(ctx)
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "build http handler", slog.String("error", err.Error()))
@@ -128,9 +128,11 @@ func serve(ctx context.Context, stdout, stderr io.Writer) int {
 
 	srv := httpserver.NewServer(httpserver.ServerOptions{
 		Addr:    cfg.HTTPAddr,
-		Handler: handler,
+		Handler: handler.Echo,
 		Logger:  logger,
 	})
+	// 넘겨받은 연결(대화 소켓)은 Shutdown이 닫아 주지 않는다. 내려가기 시작할 때 직접 닫는다.
+	srv.RegisterOnShutdown(handler.CloseSockets)
 	if err := srv.Run(ctx); err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "server stopped with error", slog.String("error", err.Error()))
 		return exitFailure

@@ -502,6 +502,7 @@ func TestLoadSessionFailure(t *testing.T) {
 		PublicOrigin: testOrigin,
 		RateLimits:   generousLimits,
 	}
+	withOfflineRecords(t, &opts)
 	e, err := New(opts)
 	require.NoError(t, err)
 
@@ -537,7 +538,7 @@ func (stalledAuth) Authenticate(ctx context.Context, _ string) (auth.Principal, 
 func (stalledAuth) CheckSignup(auth.SignupInput) error { return nil }
 
 func TestRequestDeadline(t *testing.T) {
-	e, err := New(Options{
+	opts := Options{
 		Logger:         slog.New(slog.DiscardHandler),
 		Clock:          clock.NewFake(baseTime),
 		Auth:           stalledAuth{},
@@ -548,7 +549,9 @@ func TestRequestDeadline(t *testing.T) {
 		RequestTimeout: 50 * time.Millisecond,
 		// 가입과 로그인이 따로 받는 기한은 세션을 읽은 뒤에야 시작한다. 그 기한에 기대고 있지 않다는 것을 보이려고 길게 준다.
 		AuthTimeout: time.Hour,
-	})
+	}
+	withOfflineRecords(t, &opts)
+	e, err := New(opts)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -599,7 +602,7 @@ func TestClientAddressForwardingDiagnostics(t *testing.T) {
 	newServer := func(t *testing.T, trusted []netip.Prefix) (*echo.Echo, *syncBuffer) {
 		t.Helper()
 		logs := &syncBuffer{}
-		e, err := New(Options{
+		opts := Options{
 			Logger:         slog.New(slog.NewJSONHandler(logs, nil)),
 			Clock:          clock.NewFake(baseTime),
 			Auth:           stubAuth{},
@@ -608,7 +611,9 @@ func TestClientAddressForwardingDiagnostics(t *testing.T) {
 			PublicOrigin:   testOrigin,
 			TrustedProxies: trusted,
 			RateLimits:     generousLimits,
-		})
+		}
+		withOfflineRecords(t, &opts)
+		e, err := New(opts)
 		require.NoError(t, err)
 		return e, logs
 	}
@@ -761,7 +766,7 @@ func TestErrorHandler(t *testing.T) {
 
 func TestNewRejectsIncompleteOptions(t *testing.T) {
 	complete := func() Options {
-		return Options{
+		opts := Options{
 			Logger:       slog.New(slog.DiscardHandler),
 			Clock:        clock.NewFake(baseTime),
 			Auth:         stubAuth{},
@@ -770,6 +775,8 @@ func TestNewRejectsIncompleteOptions(t *testing.T) {
 			PublicOrigin: testOrigin,
 			RateLimits:   generousLimits,
 		}
+		withOfflineRecords(t, &opts)
+		return opts
 	}
 	_, err := New(complete())
 	require.NoError(t, err)
@@ -779,6 +786,8 @@ func TestNewRejectsIncompleteOptions(t *testing.T) {
 		"시계가 없다":         func(o *Options) { o.Clock = nil },
 		"인증 서비스가 없다":     func(o *Options) { o.Auth = nil },
 		"설정을 읽을 곳이 없다":   func(o *Options) { o.Settings = nil },
+		"저장소가 없다":        func(o *Options) { o.Store = nil },
+		"글을 잠글 곳이 없다":    func(o *Options) { o.Sealers = nil },
 		"쿠키 이름이 없다":      func(o *Options) { o.Cookie.Name = "" },
 		"출처가 출처의 꼴이 아니다": func(o *Options) { o.PublicOrigin = "localhost:5173/app" },
 		"시도 한도가 비어 있다":   func(o *Options) { o.RateLimits = RateLimits{} },
@@ -838,11 +847,13 @@ func TestRegisterOperations(t *testing.T) {
 	})
 }
 
+// /ws 아래의 경로가 /api와 똑같은 미들웨어 묶음을 거치는지 본다.
+// 묶음은 Register가 한 번만 만들어 두 앞머리에 건다. 한쪽에만 더하는 실수로 둘이 어긋날 수 없다.
 func TestRoutesOutsideTheSpec(t *testing.T) {
 	principal := auth.Principal{User: auth.User{ID: uuid.New()}, Session: auth.Session{ID: uuid.New()}}
 	logger := slog.New(slog.DiscardHandler)
 	e := httpserver.New(httpserver.Options{Logger: logger, ErrorHandler: NewErrorHandler(logger), AccessLogAttrs: AccessLogAttrs})
-	group, err := Register(e, Options{
+	opts := Options{
 		Logger:       logger,
 		Clock:        clock.NewFake(baseTime),
 		Auth:         stubAuth{principal: principal},
@@ -850,10 +861,12 @@ func TestRoutesOutsideTheSpec(t *testing.T) {
 		Cookie:       CookieConfig{Name: "sid", MaxAge: day},
 		PublicOrigin: testOrigin,
 		RateLimits:   generousLimits,
-	})
+	}
+	withOfflineRecords(t, &opts)
+	group, err := Register(e, opts)
 	require.NoError(t, err)
 
-	// 명세에 적을 수 없는 경로(WebSocket 같은)를 같은 그룹에 붙인 모습이다.
+	// 대화 소켓이 붙는 자리다. 소켓 대신 무엇이 거쳐 왔는지 알려주는 핸들러를 붙여 본다.
 	stream := func(c *echo.Context) error {
 		p, ok := PrincipalFrom(c.Request().Context())
 		require.True(t, ok)
@@ -863,7 +876,7 @@ func TestRoutesOutsideTheSpec(t *testing.T) {
 	group.POST("/v1/stream", stream, RequireAuth())
 
 	do := func(method string, withCookie bool, headers map[string]string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(method, "/api/v1/stream", nil)
+		req := httptest.NewRequest(method, "/ws/v1/stream", nil)
 		if withCookie {
 			req.AddCookie(&http.Cookie{Name: "sid", Value: "valid"})
 		}
@@ -934,7 +947,7 @@ func TestRoutesOutsideTheSpec(t *testing.T) {
 			return c.NoContent(http.StatusNoContent)
 		})
 		rec := httptest.NewRecorder()
-		e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/long-lived", nil))
+		e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ws/v1/long-lived", nil))
 		require.Equal(t, http.StatusNoContent, rec.Code)
 		assert.False(t, streamHasDeadline, "기한이 걸리면 대화가 도중에 끊긴다")
 	})

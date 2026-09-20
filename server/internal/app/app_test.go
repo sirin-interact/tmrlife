@@ -20,6 +20,7 @@ import (
 	"github.com/sirin-interact/tmrlife/server/internal/clock"
 	"github.com/sirin-interact/tmrlife/server/internal/config"
 	"github.com/sirin-interact/tmrlife/server/internal/crypto"
+	"github.com/sirin-interact/tmrlife/server/internal/engine"
 	"github.com/sirin-interact/tmrlife/server/internal/queue"
 	"github.com/sirin-interact/tmrlife/server/internal/sealing"
 	"github.com/sirin-interact/tmrlife/server/internal/testdb"
@@ -325,7 +326,7 @@ func TestNewHTTPHandler(t *testing.T) {
 			req.Header.Set("X-Forwarded-For", forwardedFor)
 			req.RemoteAddr = "10.42.0.8:41000"
 			rec := httptest.NewRecorder()
-			handler.ServeHTTP(rec, req)
+			handler.Echo.ServeHTTP(rec, req)
 			return rec
 		}
 
@@ -343,7 +344,7 @@ func TestNewHTTPHandler(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 		ready := httptest.NewRecorder()
-		handler.ServeHTTP(ready, req)
+		handler.Echo.ServeHTTP(ready, req)
 		assert.Equal(t, http.StatusOK, ready.Code, "상태 확인은 로그인 없이 열려 있다")
 	})
 
@@ -384,12 +385,20 @@ func TestWorkerOptions(t *testing.T) {
 	defer stop()
 	require.NoError(t, client.Start(ctx), "등록한 작업 종류가 있어야 작업자가 뜬다")
 
-	t.Run("작업자가 뜨면 끝난 세션을 지우는 작업이 한 번 돈다", func(t *testing.T) {
-		select {
-		case ev := <-completed:
-			assert.Equal(t, auth.SessionCleanupArgs{}.Kind(), ev.Job.Kind)
-		case <-time.After(30 * time.Second):
-			t.Fatal("주기 작업이 돌지 않았다")
+	t.Run("작업자가 뜨면 주기 작업이 모두 한 번씩 돈다", func(t *testing.T) {
+		// 뜰 때 도는 주기 작업이 둘이다. 끝나는 순서는 정해져 있지 않으므로 둘 다 볼 때까지 기다린다.
+		waiting := map[string]bool{
+			auth.SessionCleanupArgs{}.Kind(): true,
+			engine.SweepArgs{}.Kind():        true,
+		}
+		deadline := time.After(30 * time.Second)
+		for len(waiting) > 0 {
+			select {
+			case ev := <-completed:
+				delete(waiting, ev.Job.Kind)
+			case <-deadline:
+				t.Fatalf("주기 작업이 돌지 않았다: %v", waiting)
+			}
 		}
 	})
 

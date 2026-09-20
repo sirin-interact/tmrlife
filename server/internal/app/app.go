@@ -24,6 +24,7 @@ import (
 	"github.com/sirin-interact/tmrlife/server/internal/clock"
 	"github.com/sirin-interact/tmrlife/server/internal/config"
 	"github.com/sirin-interact/tmrlife/server/internal/crypto"
+	"github.com/sirin-interact/tmrlife/server/internal/engine"
 	"github.com/sirin-interact/tmrlife/server/internal/pgdb"
 	"github.com/sirin-interact/tmrlife/server/internal/queue"
 	"github.com/sirin-interact/tmrlife/server/internal/sealing"
@@ -179,24 +180,42 @@ func (d *Deps) NewAuthService(ctx context.Context) (*auth.Service, error) {
 	return service, nil
 }
 
+// HTTPHandler는 서버가 띄우는 것이다.
+type HTTPHandler struct {
+	// Echo는 서버가 받는 모든 경로가 붙은 핸들러다.
+	Echo *echo.Echo
+	// CloseSockets는 종료가 시작될 때 부른다. 열려 있는 대화 연결을 닫는다.
+	// net/http의 Shutdown은 넘겨받은 연결(WebSocket)을 닫아 주지 않아서, 부르지 않으면 대화를 열어 둔 사용자가
+	// 있는 동안 프로세스가 기다림의 끝까지 내려가지 못한다.
+	CloseSockets func()
+}
+
 // NewHTTPHandler는 서버가 받는 모든 경로가 붙은 핸들러를 만든다. 서버만 부른다.
-// 상태 확인(/healthz, /readyz)은 /api 밖에 있고 로그인을 거치지 않는다.
+// 상태 확인(/healthz, /readyz)은 /api와 /ws 밖에 있고 로그인을 거치지 않는다.
 //
-// 인증 서비스를 여기서 만들므로 비밀번호 해시 설정이 틀렸으면 첫 로그인이 아니라 뜰 때 실패한다.
-func (d *Deps) NewHTTPHandler(ctx context.Context) (*echo.Echo, error) {
+// 여기서 만드는 것이 많은 까닭은 틀린 설정을 첫 요청이 아니라 뜰 때 드러내기 위해서다.
+// 비밀번호 해시, 언어 모델, 지시문, 문구, 명세가 모두 이 자리에서 확인된다.
+func (d *Deps) NewHTTPHandler(ctx context.Context) (*HTTPHandler, error) {
 	authService, err := d.NewAuthService(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conversation, err := d.newConversationChannel(ctx)
 	if err != nil {
 		return nil, err
 	}
 	cfg := d.Config
 	// 미들웨어는 시작할 때의 ctx가 아니라 요청마다의 컨텍스트를 쓴다. 검사기가 그 차이를 알지 못한다.
 	handler, err := api.New(api.Options{ //nolint:contextcheck // 요청 컨텍스트를 쓰는 것이 맞다.
-		Logger:     d.Logger,
-		Clock:      d.Clock,
-		DB:         d.Pool,
-		Production: cfg.Env.IsProd(),
-		Auth:       authService,
-		Settings:   d.Store.Queries(),
+		Logger:       d.Logger,
+		Clock:        d.Clock,
+		DB:           d.Pool,
+		Production:   cfg.Env.IsProd(),
+		Auth:         authService,
+		Settings:     d.Store.Queries(),
+		Store:        d.Store,
+		Sealers:      d.Sealers,
+		Conversation: conversation,
 		Cookie: api.CookieConfig{
 			Name:   cfg.Session.CookieName,
 			Secure: cfg.Session.CookieSecure,
@@ -217,11 +236,12 @@ func (d *Deps) NewHTTPHandler(ctx context.Context) (*echo.Echo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create http handler: %w", err)
 	}
-	return handler, nil
+	return &HTTPHandler{Echo: handler, CloseSockets: conversation.Shutdown}, nil
 }
 
 // WorkerOptions는 작업자가 맡는 작업 종류와 주기 작업을 모은다. 새 작업은 여기에 더한다.
 // 언어 모델을 부르는 작업은 그 모델을 받았을 때만 등록된다(WithAnalysisModel).
+// 버려진 대화를 닫는 작업은 모델을 부르지 않으므로 언제나 등록한다.
 func (d *Deps) WorkerOptions(ctx context.Context, opts ...WorkerOption) (queue.WorkerOptions, error) {
 	var settings workerSettings
 	for _, apply := range opts {
@@ -236,12 +256,19 @@ func (d *Deps) WorkerOptions(ctx context.Context, opts ...WorkerOption) (queue.W
 	if err != nil {
 		return queue.WorkerOptions{}, err
 	}
+	sweepConversations, err := d.newSweepWorker()
+	if err != nil {
+		return queue.WorkerOptions{}, err
+	}
 	if !draftsDiaries {
 		d.Logger.LogAttrs(ctx, slog.LevelWarn, "diary draft worker is not registered: no analysis model was given")
 	}
 	return queue.WorkerOptions{
 		Register: func(workers *river.Workers) error {
 			if err := river.AddWorkerSafely(workers, sessionCleanup); err != nil {
+				return err
+			}
+			if err := river.AddWorkerSafely(workers, sweepConversations); err != nil {
 				return err
 			}
 			if !draftsDiaries {
@@ -251,6 +278,7 @@ func (d *Deps) WorkerOptions(ctx context.Context, opts ...WorkerOption) (queue.W
 		},
 		PeriodicJobs: []*river.PeriodicJob{
 			auth.SessionCleanupPeriodicJob(),
+			engine.SweepPeriodicJob(engine.DefaultSweepInterval),
 		},
 	}, nil
 }
