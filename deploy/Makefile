@@ -92,8 +92,12 @@ render-local: ## 로컬 구성을 펼쳐서 출력한다
 render-prod: ## 운영 구성을 펼쳐서 출력한다
 	@kubectl kustomize $(K8S)/overlays/prod
 
+.PHONY: check-config
+check-config: ## 서버가 읽는 설정 값이 배포 구성에 모두 있는지 본다
+	@bash $(ROOT)/deploy/scripts/check-config-keys.sh
+
 .PHONY: validate
-validate: ## 두 구성을 펼쳐서 스키마에 맞는지 검사한다 (클러스터에 닿지 않는다)
+validate: check-config ## 두 구성을 펼쳐서 스키마에 맞는지 검사한다 (클러스터에 닿지 않는다)
 	@# pipefail을 여기서 직접 켠다. 없으면 구성을 펼치다 실패해도 검사기가 빈 입력을 받고 "0개 모두 통과"로 끝난다.
 	@set -o pipefail; for overlay in local prod; do \
 		echo "==> overlays/$$overlay"; \
@@ -146,7 +150,7 @@ local-forward: ## 웹 파드를 http://naeil.localhost:8088 로 연다 (Ctrl+C�
 	@$(LOCAL_KUBECTL) port-forward service/naeil-web $(LOCAL_PORT):8080
 
 .PHONY: local-smoke
-local-smoke: ## 웹 진입점으로 가입부터 로그아웃까지 돌리고 로그에 이메일이 없는지 본다
+local-smoke: ## 웹 진입점으로 가입, 대화 채널, 로그아웃을 돌리고 로그에 이메일이 없는지 본다
 	@bash $(ROOT)/deploy/scripts/smoke-local.sh $(LOCAL_CONTEXT) $(LOCAL_NAMESPACE)
 
 .PHONY: local-restart

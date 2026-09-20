@@ -15,6 +15,17 @@ export const CONVERSATION_PATH = '/ws/v1/conversation';
 /** 글 하나의 최대 길이(글자 수). 명세의 값과 같아야 한다. 넘으면 서버가 메시지 전체를 거절한다. */
 export const USER_TEXT_MAX_LENGTH = 2000;
 
+/**
+ * 서버가 연결을 닫을 때 쓰는 코드. 1000~2999는 표준이 정한 값이라 쓰지 않고 앱이 쓸 수 있는 4000번대를 쓴다.
+ * 서버가 쓰는 값과 같아야 한다. 이 코드로 닫힌 연결은 다시 이어도 같은 까닭으로 닫히므로 다시 잇지 않는다.
+ */
+export const CLOSE_CODE = {
+  /** 같은 계정의 다른 연결이 대화를 이어받았다. 여기서 다시 이으면 두 화면이 서로 대화를 빼앗는다. */
+  takenOver: 4001,
+  /** 계정이 지워져 더 이어갈 수 없다. */
+  gone: 4002,
+} as const;
+
 export function conversationUrl(location: Pick<Location, 'protocol' | 'host'>): string {
   const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${scheme}//${location.host}${CONVERSATION_PATH}`;

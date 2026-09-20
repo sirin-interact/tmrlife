@@ -130,7 +130,7 @@ func (s *Sweeper) Sweep(ctx context.Context) (SweepResult, error) {
 			s.logger.LogAttrs(ctx, slog.LevelError, "stale conversation cannot be ended",
 				slog.String("user_id", row.UserID.String()),
 				slog.String("conversation_id", row.ID.String()),
-				slog.String("error", err.Error()),
+				slog.String("failure", failureName(err)),
 			)
 			continue
 		}

@@ -21,7 +21,7 @@ WHERE id = $2
   AND status = 'active'
   AND array_position(ARRAY['none', 'reflected', 'asked'], check_state)
       <= array_position(ARRAY['none', 'reflected', 'asked'], $1::text)
-RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage
 `
 
 type AdvanceConversationCheckStateParams struct {
@@ -33,6 +33,7 @@ type AdvanceConversationCheckStateParams struct {
 // 확인 상태는 앞으로만 간다(none, reflected, asked 순). 같은 값을 다시 적는 것은 받아 준다.
 // 뒤로 돌리려는 요청과 끝난 대화에 대한 요청은 찾지 못함이 된다. 직접 묻기는 한 대화에서 한 번뿐이어야 하므로,
 // 같은 대화를 두 연결이 함께 다루더라도 "직접 물었다"가 "되물었다"로 덮이지 않게 한다.
+// 'asked'로 옮기는 일은 ClaimDirectAsk만 한다. 여기서는 그 자리를 넘겨받지 않는다.
 func (q *Queries) AdvanceConversationCheckState(ctx context.Context, arg AdvanceConversationCheckStateParams) (Conversation, error) {
 	row := q.db.QueryRow(ctx, advanceConversationCheckState, arg.CheckState, arg.ID, arg.UserID)
 	var i Conversation
@@ -48,6 +49,86 @@ func (q *Queries) AdvanceConversationCheckState(ctx context.Context, arg Advance
 		&i.ProcessingStatus,
 		&i.CreatedAt,
 		&i.CheckState,
+		&i.CrisisSpokenStage,
+	)
+	return i, err
+}
+
+const advanceConversationCrisisStage = `-- name: AdvanceConversationCrisisStage :one
+UPDATE conversations
+SET crisis_spoken_stage = $1
+WHERE id = $2
+  AND user_id = $3
+  AND status = 'active'
+  AND crisis_spoken_stage <= $1
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage
+`
+
+type AdvanceConversationCrisisStageParams struct {
+	CrisisSpokenStage int16
+	ID                uuid.UUID
+	UserID            uuid.UUID
+}
+
+// 위기 대응의 고정 문구가 실제로 나간 단계를 적는다. 뒤로 돌리지 않고, 같은 값을 다시 적는 것은 받아 준다.
+// 말이 나간 트랜잭션 안에서만 부른다. 말이 나가기 전에 적으면, 판정만 남기고 끊긴 턴을 다시 보냈을 때
+// 고정 문구를 이미 말한 것으로 보고 건너뛴다.
+func (q *Queries) AdvanceConversationCrisisStage(ctx context.Context, arg AdvanceConversationCrisisStageParams) (Conversation, error) {
+	row := q.db.QueryRow(ctx, advanceConversationCrisisStage, arg.CrisisSpokenStage, arg.ID, arg.UserID)
+	var i Conversation
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.DayID,
+		&i.Status,
+		&i.StartedMode,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.EndReason,
+		&i.ProcessingStatus,
+		&i.CreatedAt,
+		&i.CheckState,
+		&i.CrisisSpokenStage,
+	)
+	return i, err
+}
+
+const claimDirectAsk = `-- name: ClaimDirectAsk :one
+UPDATE conversations
+SET check_state = 'asked'
+WHERE id = $1
+  AND user_id = $2
+  AND status = 'active'
+  AND check_state = 'reflected'
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage
+`
+
+type ClaimDirectAskParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+// 직접 묻기의 자리를 한 번만 내준다. 되물은 뒤('reflected')에서만 '물었다'로 옮겨지고, 옮긴 쪽만 행을 돌려받는다.
+//
+// 단순히 앞으로만 가는 규칙으로는 모자란다. 두 연결이 같은 대화를 함께 다루면 둘 다 'reflected'를 읽고
+// 둘 다 직접 묻기로 가서, 사람이 같은 질문을 연달아 두 번 받는다. 여기서 진 쪽은 코어의 규칙대로
+// "이미 물었다"로 보고 대응 단계로 올라간다.
+func (q *Queries) ClaimDirectAsk(ctx context.Context, arg ClaimDirectAskParams) (Conversation, error) {
+	row := q.db.QueryRow(ctx, claimDirectAsk, arg.ID, arg.UserID)
+	var i Conversation
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.DayID,
+		&i.Status,
+		&i.StartedMode,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.EndReason,
+		&i.ProcessingStatus,
+		&i.CreatedAt,
+		&i.CheckState,
+		&i.CrisisSpokenStage,
 	)
 	return i, err
 }
@@ -63,7 +144,7 @@ VALUES (
     $5,
     $5
 )
-RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage
 `
 
 type CreateConversationParams struct {
@@ -96,6 +177,7 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 		&i.ProcessingStatus,
 		&i.CreatedAt,
 		&i.CheckState,
+		&i.CrisisSpokenStage,
 	)
 	return i, err
 }
@@ -117,7 +199,7 @@ WHERE c.id = $4
             AND u.created_at > $6::timestamptz
       )
   )
-RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage
 `
 
 type EndConversationParams struct {
@@ -156,12 +238,13 @@ func (q *Queries) EndConversation(ctx context.Context, arg EndConversationParams
 		&i.ProcessingStatus,
 		&i.CreatedAt,
 		&i.CheckState,
+		&i.CrisisSpokenStage,
 	)
 	return i, err
 }
 
 const getActiveConversation = `-- name: GetActiveConversation :one
-SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state, d.record_date
+SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state, c.crisis_spoken_stage, d.record_date
 FROM conversations AS c
 JOIN days AS d ON d.id = c.day_id
 WHERE c.user_id = $1
@@ -190,13 +273,14 @@ func (q *Queries) GetActiveConversation(ctx context.Context, userID uuid.UUID) (
 		&i.Conversation.ProcessingStatus,
 		&i.Conversation.CreatedAt,
 		&i.Conversation.CheckState,
+		&i.Conversation.CrisisSpokenStage,
 		&i.RecordDate,
 	)
 	return i, err
 }
 
 const getConversation = `-- name: GetConversation :one
-SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state, d.record_date
+SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state, c.crisis_spoken_stage, d.record_date
 FROM conversations AS c
 JOIN days AS d ON d.id = c.day_id
 WHERE c.id = $1
@@ -228,13 +312,14 @@ func (q *Queries) GetConversation(ctx context.Context, arg GetConversationParams
 		&i.Conversation.ProcessingStatus,
 		&i.Conversation.CreatedAt,
 		&i.Conversation.CheckState,
+		&i.Conversation.CrisisSpokenStage,
 		&i.RecordDate,
 	)
 	return i, err
 }
 
 const listConversationsByDay = `-- name: ListConversationsByDay :many
-SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state,
+SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state, c.crisis_spoken_stage,
        EXISTS (
            SELECT 1 FROM gate_events AS g
            WHERE g.conversation_id = c.id
@@ -279,6 +364,7 @@ func (q *Queries) ListConversationsByDay(ctx context.Context, arg ListConversati
 			&i.Conversation.ProcessingStatus,
 			&i.Conversation.CreatedAt,
 			&i.Conversation.CheckState,
+			&i.Conversation.CrisisSpokenStage,
 			&i.Crisis,
 		); err != nil {
 			return nil, err

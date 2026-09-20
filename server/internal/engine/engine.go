@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/sirin-interact/tmrlife/server/internal/clock"
+	"github.com/sirin-interact/tmrlife/server/internal/core/crisis"
 	"github.com/sirin-interact/tmrlife/server/internal/core/params"
 	"github.com/sirin-interact/tmrlife/server/internal/crypto"
 	"github.com/sirin-interact/tmrlife/server/internal/diary"
@@ -141,6 +142,31 @@ func New(opts Options) (*Engine, error) {
 	return e, nil
 }
 
+// failureName은 오류를 로그에 남길 짧은 이름으로 바꾼다. 오류의 문구는 남기지 않는다.
+//
+// 감싼 오류의 문구에는 사용자의 글이나 쿼리 조각이 섞여 들어올 수 있다. 로그를 거르는 그물은 이름으로 거르는데
+// "error"는 그 목록에 없다. 그래서 여기서 정해 둔 낱말로 바꿔 남긴다.
+func failureName(err error) string {
+	switch {
+	case err == nil:
+		return ""
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline_exceeded"
+	case errors.Is(err, ErrGone):
+		return "gone"
+	case errors.Is(err, ErrConversationEnded):
+		return "conversation_ended"
+	case errors.Is(err, store.ErrNotFound):
+		return "not_found"
+	case errors.Is(err, store.ErrConflict):
+		return "conflict"
+	default:
+		return "internal"
+	}
+}
+
 // Participant는 대화하는 사람이다.
 type Participant struct {
 	ID uuid.UUID
@@ -160,8 +186,10 @@ type StartInput struct {
 // Session은 열린 대화 하나를 가리키는 손잡이다. 연결 하나가 하나를 들고 있다.
 //
 // 한 대화의 턴은 여기서 줄을 선다. 앞선 턴이 끝나기 전에 들어온 글은 기다린다.
-// 여러 연결이 같은 대화를 다루면 Session도 여럿이 된다. 그때 순서를 지키는 것은 DB의 잠금이고,
-// 직접 묻기를 한 번으로 묶는 것은 대화 행의 확인 상태다.
+// 여러 연결이 같은 대화를 다루면 Session도 여럿이 되고, 이 잠금은 그들 사이에서 아무것도 지켜 주지 않는다.
+// 그때 순서를 지키는 것은 DB의 잠금이다. 직접 묻기를 한 대화에서 한 번으로 묶는 것은 대화 행의 확인 상태인데,
+// 읽고 나서 옮기는 것으로는 모자라 옮기는 쪽이 자리를 차지하게 되어 있다(ClaimDirectAsk).
+// 위기 고정 문구를 한 단계에 한 번으로 묶는 것도 같은 까닭으로 대화 행에 있다(crisis_spoken_stage).
 type Session struct {
 	engine *Engine
 	sink   Sink
@@ -254,6 +282,10 @@ func (e *Engine) Start(ctx context.Context, in StartInput) (*Session, error) {
 		return nil, err
 	}
 	s.id, s.dayID = row.ID, row.DayID
+	spoken, err := crisis.StageFromInt(int(row.CrisisSpokenStage))
+	if err != nil {
+		return nil, fmt.Errorf("engine: stored crisis stage: %w", err)
+	}
 
 	var history []Utterance
 	if s.resumed {
@@ -282,7 +314,12 @@ func (e *Engine) Start(ctx context.Context, in StartInput) (*Session, error) {
 
 	if s.crisis {
 		// 자원 고정은 그 대화가 끝날 때까지 유지한다. 연결이 새로 붙었으면 화면도 비어 있으므로 다시 내보낸다.
-		if err := s.emitResources(ctx, e.phrases.Resources()); err != nil {
+		// 순서도 그대로 이어간다. 가장 급한 판정을 받은 사람이 화면을 새로 고쳤다고 보통의 차례로 돌아가지 않는다.
+		items := e.phrases.Resources()
+		if spoken >= crisis.StageUrgent {
+			items = e.phrases.UrgentResources()
+		}
+		if err := s.emitResources(ctx, items); err != nil {
 			return nil, err
 		}
 	}
@@ -414,14 +451,17 @@ func (e *Engine) emitOpening(ctx context.Context, s *Session) error {
 }
 
 // emitResources는 도움 자원을 한 연결에서 한 번만 내보낸다.
+//
+// 한 번 나갔다는 표시는 실제로 나간 뒤에 남긴다. 나가기 전에 남기면 내보내기가 실패했을 때 그 연결은
+// 번호를 영영 다시 내주지 않는다. 반드시 닿아야 하는 것을 지키는 빗장이 그 자체를 막아서는 안 된다.
 func (s *Session) emitResources(ctx context.Context, items []phrases.Resource) error {
 	if s.resourcesSent {
 		return nil
 	}
-	s.resourcesSent = true
 	if err := s.sink.Emit(ctx, Resources{Items: items}); err != nil {
 		return fmt.Errorf("engine: emit resources: %w", err)
 	}
+	s.resourcesSent = true
 	return nil
 }
 

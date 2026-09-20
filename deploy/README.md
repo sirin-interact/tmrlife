@@ -25,7 +25,7 @@
 ```
 deploy/
   Makefile                  이 문서의 명령 모음
-  scripts/                  이미지 확인 스크립트
+  scripts/                  이미지와 설정을 확인하는 스크립트
   k8s/base/                 환경과 무관한 공통 구성 (그대로 배포하지 않는다)
   k8s/overlays/local/       내 컴퓨터(OrbStack)용. DB 포함, 값은 모두 공개된 개발용
   k8s/overlays/prod/        K3s 운영용. CloudNativePG, cert-manager, Traefik 설정 포함
@@ -85,15 +85,18 @@ OrbStack의 쿠버네티스는 도커와 이미지 저장소를 함께 쓴다. �
 
 ```sh
 make -C deploy images          # 이미지 만들기
-make -C deploy validate        # 구성을 펼쳐서 스키마 검사 (클러스터에 닿지 않는다)
+make -C deploy validate        # 설정 값 확인 + 구성을 펼쳐서 스키마 검사 (클러스터에 닿지 않는다)
 make -C deploy local-dry-run   # 클러스터에 만들지 않고 검증만
 make -C deploy local-up        # naeil-local 네임스페이스에 올리고 모두 뜰 때까지 기다린다 (20~40초)
 make -C deploy local-status
-make -C deploy local-smoke     # 웹 진입점으로 가입부터 로그아웃까지 돌려 본다
+make -C deploy local-smoke     # 웹 진입점으로 가입, 대화 채널, 로그아웃을 돌려 본다
 ```
 
-`local-smoke`는 브라우저가 다니는 길 그대로 확인한다. 앱 껍데기와 보안 머리글, `/healthz`, 가입에 필요한 동의 목록, 가입, 내 정보, 중복 가입(409),
-로그아웃, 다시 로그인. 다른 출처에서 보낸 가입이 403으로 막히는지도 본다. 끝으로 가입에 쓴 이메일과 비밀번호가 서버, 작업자, 웹, DB의 로그 어디에도 없는지 확인한다.
+`local-smoke`는 브라우저가 다니는 길 그대로 확인한다. 앱 껍데기와 보안 머리글, `/healthz`, 대화 채널(`/ws`), 가입에 필요한 동의 목록, 가입, 내 정보,
+중복 가입(409), 로그아웃, 다시 로그인. 다른 출처에서 보낸 가입이 403으로 막히는지도 본다.
+대화 채널은 연결을 여는 손잡기만 보내 본다. 로그인하지 않았으면 401이, 다른 출처에서 열었으면 403이 와야 한다.
+둘 다 API 서버가 주는 답이라, 404나 HTML이 오면 요청이 정적 파일 서버에서 끝난 것이다.
+끝으로 가입에 쓴 이메일과 비밀번호가 서버, 작업자, 웹, DB의 로그 어디에도 없는지 확인한다.
 접속 주소는 서버가 받은 `PUBLIC_ORIGIN`에서 읽으므로, 통과하면 그 값이 실제 주소와 맞다는 것까지 확인된다.
 포트 포워딩이 열려 있지 않으면 검사하는 동안만 직접 연다. 검사용 계정이 로컬 DB에 하나씩 남는다.
 
@@ -138,6 +141,8 @@ curl -i http://localhost:8089/readyz
 `k8s/overlays/local/kustomization.yaml`의 `PUBLIC_ORIGIN`도 같은 값으로 고친다. 둘은 글자 그대로 같아야 한다.
 
 음성과 대화 기능까지 확인하려면 API 키를 셸의 환경 변수에서 바로 Secret으로 만든다. 파일에 적지 않는다.
+대화까지 실제 모델로 보려면 `k8s/overlays/local/kustomization.yaml`의 `AI_PROVIDER`를 `gemini`로 바꾼다.
+`scripted`로 남아 있으면 키를 넣어도 대화는 정해 둔 답으로 돈다(설정이 키보다 먼저다).
 
 ```sh
 kubectl --context orbstack -n naeil-local create secret generic naeil-provider-keys \
@@ -284,12 +289,26 @@ kubectl -n naeil patch serviceaccount default -p '{"imagePullSecrets":[{"name":"
 | `PASSWORD_HASH_CONCURRENCY` | `4` | 동시에 계산하는 해시의 수. 해시에 쓰는 메모리는 `MEMORY_KIB` x 이 값을 넘지 않는다 |
 | `DATA_KEY_CACHE_SIZE` | `1024` | 풀어 둔 사용자별 데이터 키를 파드 하나가 몇 명분까지 들고 있을지 |
 | `DATA_KEY_CACHE_MAX_AGE` | `10m` | 풀어 둔 데이터 키를 다시 확인하지 않고 쓰는 최대 시간 |
+| `AI_PROVIDER` | 운영 `gemini`, 로컬 `scripted` | 언어 모델의 답을 어디서 받을지. `gemini`는 `GEMINI_API_KEY`가 있어야 뜨고, `scripted`는 밖으로 나가지 않고 정해 둔 답을 돌려준다. `APP_ENV=prod`에서는 `scripted`로 뜨지 않는다 |
+| `LLM_MODEL_*`, `LLM_THINKING_*` | `k8s/base/kustomization.yaml` 참고 | 대화, 위기 판별, 분석에 쓰는 모델과 생각하기 수준. 모델은 몇 달마다 바뀌므로 이미지를 다시 만들지 않고 여기서 바꾼다 |
+| `LLM_FALLBACK_AFTER` | `3s` | 대화 모델의 첫 글자를 이만큼 기다린 뒤 예비 모델을 부른다 |
+| `GATE_AI_TIMEOUT` | `2500ms` | 위기 판별 모델의 답을 기다리는 시간(30초 이하). 넘기면 규칙의 판정만으로 대응한다. 사용자는 이 시간이 지나야 답을 받기 시작한다 |
+| `IDLE_CHECK_AFTER` | `3m` | 이 시간 동안 말이 없으면 한 번 묻는다 |
+| `IDLE_END_AFTER` | `3m` | 묻고 나서 이 시간 동안 답이 없으면 대화를 끝낸다. 일기 초안은 그대로 만들어진다 |
+| `DISCONNECT_END_AFTER` | `30m` | 연결이 끊긴 대화를 열어 둔 채 기다리는 시간. 배포로 파드가 내려가면 열려 있던 대화 연결도 끊기므로, 이 시간이 사용자가 돌아올 여유가 된다 |
+| `WS_MAX_MESSAGE_BYTES` | `16384` | 대화 채널이 클라이언트에서 받는 메시지 하나의 최대 크기(1024~1048576 바이트) |
+| `WS_MESSAGE_RATE_LIMIT` | `20/1m` | 연결 하나가 보낼 수 있는 메시지의 빈도. 글 하나마다 모델을 두세 번 부르므로 비용의 상한이기도 하다 |
+| `DIARY_JOB_RETRIES` | `3` | 일기 초안을 만들지 못했을 때 다시 시도하는 횟수(0~10). 다 쓰면 빈 초안을 남겨 사용자가 직접 쓸 수 있게 한다 |
 
 시도 한도는 파드마다 따로 센다. 운영 구성은 서버를 둘 띄우므로 실제 한도는 적힌 값의 두 배까지 늘어나고, 파드가 다시 뜨면 처음부터 센다.
 적힌 값 그대로를 원하면 한도를 파드 수로 나눠 적는다.
 
 해시에 쓰는 메모리(기본값으로 76MiB쯤)와 시도 한도 넷이 기억하는 키(가득 차면 40MB쯤)는 서버 파드의 메모리 상한(`512Mi`) 안에 들어가야 한다.
 이 값들을 올릴 때는 `k8s/base/server.yaml`의 `limits.memory`와 `GOMEMLIMIT`을 함께 본다.
+
+설정 값을 새로 더해 놓고 ConfigMap에 적는 것을 잊으면 파드는 코드의 기본값으로 조용히 뜬다. 운영에서만 다른 값으로 도는데 로그에도 화면에도 티가 나지 않는다.
+`make -C deploy check-config`가 저장소 루트의 `.env.example`과 견주어, ConfigMap에도 Secret 예시에도 없는 이름이 있으면 실패한다(`validate`가 먼저 이 검사를 돌리고, CI의 `manifests` 작업이 같은 명령을 쓴다).
+개발 도구만 읽는 값은 그 스크립트의 `DEV_ONLY`에 까닭과 함께 적는다.
 
 ### 클라이언트 주소
 
@@ -315,6 +334,9 @@ spec:
       spec:
         externalTrafficPolicy: Local
 ```
+
+이 이름의 `HelmChartConfig`는 클러스터에 하나뿐이다. Traefik을 손볼 일이 또 생기면(아래 "WebSocket과 Traefik") 새로 만들지 말고 이 하나에 더해 적는다.
+따로 만들면 나중에 적용한 것이 앞의 것을 덮어써서, 고쳐 둔 줄 알았던 설정이 조용히 사라진다. 적용한 뒤에는 Traefik 파드가 새로 뜨는 동안 연결이 모두 끊긴다.
 
 Traefik 앞에 로드 밸런서나 CDN을 따로 둔다면 그 장비가 주소를 넘겨 주는 방식(PROXY 프로토콜이나 `X-Forwarded-For`)에 맞춰 Traefik의 진입점 설정도 함께 고친다.
 
@@ -424,13 +446,38 @@ Secret만 바꿨을 때는 파드가 저절로 다시 뜨지 않는다. `kubectl
 
 ## WebSocket과 Traefik
 
-- 따로 켤 것은 없다. Traefik은 WebSocket 업그레이드를 알아서 처리한다.
+- 따로 켤 것은 없다. Traefik은 WebSocket 업그레이드를 알아서 처리하고, 인그레스에서 `/ws`는 `/api`와 같은 서비스로 간다.
+- 서버는 열린 대화 연결에 30초마다 ping을 보낸다. 조용한 구간이 없으므로 앞단의 유휴 제한(Traefik 진입점의 `idleTimeout`은 180초)에는 걸리지 않는다.
+  ping에 10초 안에 답이 없으면 서버가 그 연결을 닫는다. 끊긴 대화는 `DISCONNECT_END_AFTER`(30분) 동안 열려 있어서, 클라이언트가 다시 붙으면 같은 대화를 이어간다.
 - 긴 대화가 늘 비슷한 시간에 끊긴다면 두 곳을 본다.
-  - Traefik 진입점의 시간 제한(`respondingTimeouts`). v3에서는 요청을 읽는 제한의 기본값이 60초다. K3s에서는 `kube-system` 네임스페이스에 `HelmChartConfig`를 만들어 Traefik 설정을 바꾼다.
-  - Traefik 앞의 장비. 클라우드 로드 밸런서나 CDN은 조용한 연결을 보통 60~100초에 끊는다.
-- 어느 쪽이든 대화 연결은 그보다 짧은 간격으로 ping을 주고받는 것이 안전하다.
+  - **Traefik 진입점의 시간 제한.** v3에서 요청을 읽는 제한(`respondingTimeouts.readTimeout`)의 기본값이 60초다.
+    이 기한은 연결을 받을 때 걸렸다가 업그레이드가 끝나면 풀리게 되어 있어서 보통은 대화에 영향이 없다. 그래도 대화가 60초마다 끊긴다면 이 값을 의심한다.
+    바꾸려면 위 "클라이언트 주소"에서 만든 `HelmChartConfig` **하나에** 더해 적는다. 이름이 같은 것을 새로 만들면 앞의 설정이 덮여 사라진다.
+
+    ```yaml
+    apiVersion: helm.cattle.io/v1
+    kind: HelmChartConfig
+    metadata:
+      name: traefik
+      namespace: kube-system
+    spec:
+      valuesContent: |-
+        service:
+          spec:
+            externalTrafficPolicy: Local
+        additionalArguments:
+          - "--entryPoints.websecure.transport.respondingTimeouts.readTimeout=0"
+    ```
+
+    0은 "제한 없음"이다. 이 진입점으로 들어오는 모든 요청에 적용되므로, 요청을 아주 천천히 보내며 연결만 붙잡고 있는 상대를 시간으로 끊어 내지 못하게 된다.
+    필요할 때만 켜고, 다른 제한(`idleTimeout`)은 그대로 둔다.
+  - **Traefik 앞의 장비.** 클라우드 로드 밸런서나 CDN은 조용한 연결을 보통 60~100초에 끊는다. ping 간격(30초)보다 짧게 끊는 장비가 있으면 그 장비의 값을 늘린다.
 - 파드가 내려갈 때 서버는 처리 중인 요청을 20초까지 기다린다. 파드의 종료 유예(`terminationGracePeriodSeconds: 40`)는 여기에 맞춘 값이다. 서버 쪽 대기 시간을 늘리면 이 값도 함께 늘린다.
+  배포나 Traefik 재시작으로 열려 있던 대화 연결은 끊긴다. 클라이언트는 다시 붙을 수 있어야 한다.
 - HTTP로 들어온 요청은 전용 Ingress(`naeil-http-redirect`)가 HTTPS로 돌려보낸다. HSTS는 Traefik 미들웨어가 모든 HTTPS 응답에 붙인다.
+- 브라우저 쪽에서는 웹앱의 보안 정책(CSP)이 같은 출처의 `wss:` 연결을 허용해야 한다. `web/Caddyfile`의 `connect-src 'self'`가 그 일을 한다.
+  `'self'`는 같은 출처의 `wss:`(페이지가 http면 `ws:`)를 함께 가리킨다. 다른 호스트로 대화 채널을 옮기면 그 주소를 `connect-src`에 적어야 한다.
+- 경로가 실제로 API 서버까지 가는지는 `make -C deploy local-smoke`가 손잡기 한 번으로 확인한다(로그인 전이면 401, 다른 출처면 403).
 
 ## CI
 
@@ -442,8 +489,8 @@ Secret만 바꿨을 때는 파드가 저절로 다시 뜨지 않는다. `kubectl
 | `generated` | `make generate`를 돌린 뒤 커밋된 생성 코드와 달라진 것이 없는지 확인 |
 | `web` | lint, typecheck, format 검사, test, build |
 | `images` | 두 이미지를 빌드하고(올리지 않는다) 운영과 같은 제약으로 띄워 확인 |
-| `manifests` | 두 구성을 `kubectl kustomize`로 펼쳐 kubeconform으로 검사 |
-| `e2e` | DB, API 서버, 빌드된 웹앱을 띄우고 브라우저(chromium)로 가입부터 로그아웃까지 확인. 로컬의 `make e2e`와 같다 |
+| `manifests` | 설정 값이 배포 구성에 다 있는지 보고, 두 구성을 `kubectl kustomize`로 펼쳐 kubeconform으로 검사 |
+| `e2e` | DB, API 서버, 작업자, 빌드된 웹앱을 띄우고 브라우저(chromium)로 가입부터 대화와 일기까지 확인. 로컬의 `make e2e`와 같다 |
 
 도구 버전은 워크플로 위쪽의 `env`에 모여 있다. 로컬의 버전을 올리면 여기도 함께 올린다.
 

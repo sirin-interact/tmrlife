@@ -15,6 +15,7 @@ import {
 } from '@/test/fakeSocket';
 import { json, mockApi, problem, signedIn } from '@/test/mockApi';
 import { renderRoute } from '@/test/renderRoute';
+import { CLOSE_CODE } from '@/talk/messages';
 
 const GREETING = '오늘 하루는 어떠셨어요?';
 
@@ -120,6 +121,18 @@ describe('대화 화면: 연결', () => {
     expect(within(log()).getByText(GREETING)).toBeInTheDocument();
     expect(input()).toHaveValue('쓰던 글');
     expect(screen.getByRole('button', { name: '보내기' })).toBeDisabled();
+  });
+
+  it('다른 화면이 대화를 이어받으면 그렇게 알리고, 여기서 이어갈지 사용자가 고른다', async () => {
+    const { socket, sockets } = await openTalk();
+
+    act(() => socket.drop(CLOSE_CODE.takenOver));
+
+    expect(screen.getByRole('status')).toHaveTextContent('다른 화면에서 이야기를 이어가고 있어요.');
+    expect(sockets.all).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole('button', { name: '여기서 이어가기' }));
+    expect(sockets.all).toHaveLength(2);
   });
 
   it('연결이 열리지도 못하고 닫히면 로그인 상태를 다시 확인하고, 세션이 끝났으면 로그인 화면으로 간다', async () => {
@@ -380,6 +393,41 @@ describe('대화 화면: 끝내기', () => {
 
     await waitFor(() => expect(router.state.location.pathname).toBe(`/diary/${RECORD_DATE}`));
     expect(router.state.location.state).toEqual({ fromTalk: true });
+  });
+
+  it('기다리는 동안 읽은 "그날의 일기 없음"을 일기 화면이 그대로 쓰지 않는다', async () => {
+    const draftText = '오늘은 친구랑 놀러 갔다 왔다.';
+    let draftExists = false;
+    const { socket, router, api } = await openTalk({
+      [`GET /api/v1/diaries/${RECORD_DATE}`]: () =>
+        draftExists
+          ? json(200, {
+              date: RECORD_DATE,
+              status: 'draft',
+              text: draftText,
+              confirmed_at: null,
+              updated_at: '2026-09-20T12:00:05.000Z',
+            })
+          : problem(404, 'not_found'),
+    });
+
+    act(() =>
+      socket.receive({
+        type: 'ended',
+        reason: 'user',
+        record_date: RECORD_DATE,
+        diary_expected: true,
+      }),
+    );
+    // 기다리는 자리가 초안이 왔는지 한 번 읽어 본다. 이때는 아직 없다.
+    await waitFor(() => expect(api.callsTo(`GET /api/v1/diaries/${RECORD_DATE}`)).toHaveLength(1));
+
+    draftExists = true;
+    act(() => socket.receive({ type: 'diary_ready', record_date: RECORD_DATE }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/diary/${RECORD_DATE}`));
+    // 옮겨 간 화면이 조금 전의 "없음"을 그대로 쓰면 초안 대신 "일기가 아직 없어요"가 보인다.
+    expect(await screen.findByLabelText('일기')).toHaveValue(draftText);
   });
 
   it('연결이 먼저 끊겨 소식을 듣지 못해도, 일기를 직접 읽어 보다가 초안이 생기면 넘어간다', async () => {

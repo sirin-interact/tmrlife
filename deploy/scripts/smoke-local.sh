@@ -116,6 +116,17 @@ expect_body "GET /healthz" '"status":"ok"'
 expect_status "GET /api/does-not-exist" 404 "$(call GET /api/does-not-exist)"
 expect_header "GET /api/does-not-exist" '^content-type: application/problem\+json'
 
+echo "== 대화 채널(/ws)도 같은 출처에서 API 서버가 답한다"
+# 연결을 여는 손잡기만 보낸다. 로그인하지 않았으므로 101이 아니라 401이 와야 한다.
+# 여기서 404나 HTML이 오면 요청이 API 서버에 닿지 못하고 정적 파일 서버에서 끝난 것이다.
+upgrade=(-H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13'
+  -H 'Sec-WebSocket-Key: AAAAAAAAAAAAAAAAAAAAAA==')
+expect_status "GET /ws/v1/conversation (쿠키 없음)" 401 "$(call GET /ws/v1/conversation "${upgrade[@]}")"
+expect_header "GET /ws/v1/conversation (쿠키 없음)" '^content-type: application/problem\+json'
+# /api와 같은 미들웨어를 거치는지 본다. 연결을 여는 요청은 GET이지만 상태를 바꾸는 요청과 같은 검사를 받아야 한다.
+expect_status "GET /ws/v1/conversation (다른 출처)" 403 "$(call GET /ws/v1/conversation "${upgrade[@]}" \
+  -H 'Origin: https://other.example' -H 'Sec-Fetch-Site: cross-site')"
+
 echo "== 가입에 필요한 동의"
 expect_status "GET /api/v1/auth/requirements" 200 "$(call GET /api/v1/auth/requirements)"
 # 동의 목록은 객체만 담긴 배열이라 첫 ']'까지가 배열 전체다. 받은 그대로 가입 요청에 넣는다.

@@ -46,6 +46,7 @@ var correctiveHints = map[Rule]string{
 	RuleForeignScript:      "한글이 아닌 글자가 섞였다. 한국어로만 말한다.",
 	RuleMissingQuestion:    "묻는 말이 없었다. 무슨 일이 있었는지 물음표로 하나 묻는다.",
 	RuleNotMirrored:        "사용자의 표현을 받지 않았다. 사용자가 쓴 낱말을 그대로 넣어 되묻는다.",
+	RuleCounsellingEnding:  "\"~었군요\", \"~하셨군요\" 같은 상담 문구를 썼다. \"~네요\", \"~나 봐요\"로 받는다.",
 }
 
 // request는 모델에 보낼 요청을 만든다. rejected는 바로 앞의 시도가 걸린 검사다.

@@ -130,9 +130,9 @@ func serve(ctx context.Context, stdout, stderr io.Writer) int {
 		Addr:    cfg.HTTPAddr,
 		Handler: handler.Echo,
 		Logger:  logger,
+		// 넘겨받은 연결(대화 소켓)은 Shutdown이 닫아 주지도, 기다려 주지도 않는다. 내려가기 시작할 때 직접 닫고 기다린다.
+		OnDrain: handler.CloseSockets,
 	})
-	// 넘겨받은 연결(대화 소켓)은 Shutdown이 닫아 주지 않는다. 내려가기 시작할 때 직접 닫는다.
-	srv.RegisterOnShutdown(handler.CloseSockets)
 	if err := srv.Run(ctx); err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "server stopped with error", slog.String("error", err.Error()))
 		return exitFailure

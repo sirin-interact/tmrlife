@@ -7,6 +7,13 @@ if (!baseURL) {
   throw new Error('E2E_BASE_URL이 없다. 저장소 루트에서 make e2e로 돌린다.');
 }
 
+// 사람들이 실제로 드는 폰은 두 엔진(Blink, WebKit)으로 갈린다. 대화 채널이 기대는 두 가지가 바로 그 경계에서 갈린다.
+// 하나는 콘텐츠 보안 정책의 connect-src 'self'가 wss: 연결에도 적용되는지, 다른 하나는 WebSocket 손잡기에
+// Sec-Fetch-* 머리글이 실리는지다(실리지 않으면 서버는 Origin과 Host를 견주는 길로 간다).
+// 막히면 대화를 아예 시작하지 못하는데 서버 쪽에서는 아무 일도 없어 보인다. 그래서 눈으로는 잡히지 않는다.
+// 다만 두 엔진을 늘 돌리면 시간이 배로 든다. 기본은 chromium 하나, 환경 변수를 주면 WebKit까지 돌린다.
+const allBrowsers = process.env.PLAYWRIGHT_ALL_BROWSERS === '1';
+
 export default defineConfig({
   testDir: './e2e',
   outputDir: './test-results',
@@ -27,9 +34,11 @@ export default defineConfig({
   },
   projects: [
     {
-      // 폰에서 쓰는 앱이라 폰 크기의 화면으로 본다. 브라우저 엔진은 chromium 하나만 쓴다.
+      // 폰에서 쓰는 앱이라 폰 크기의 화면으로 본다.
       name: 'chromium',
       use: { ...devices['Pixel 7'] },
     },
+    // PLAYWRIGHT_ALL_BROWSERS=1일 때만 더한다. 데모 전에는 이 쪽도 돌려 본다.
+    ...(allBrowsers ? [{ name: 'webkit', use: { ...devices['iPhone 14'] } }] : []),
   ],
 });

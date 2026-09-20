@@ -159,17 +159,19 @@ var plaintextColumns = map[string]string{
 	// DB의 디스크와 백업을 민감한 정보로 다뤄야 하는 이유가 이 묶음이다.
 	"conversations.end_reason":  "끝난 이유다. 위기로 끝났는지가 드러난다. CHECK가 읽는다",
 	"conversations.check_state": "애매한 표현을 되물었는지, 직접 물었는지다. 앞으로만 가게 하는 조건절과 CHECK가 읽는다",
-	"gate_events.rule_stage":    "규칙이 본 단계다",
-	"gate_events.ai_stage":      "AI 판별이 본 단계다",
-	"gate_events.final_stage":   "최근에 단계가 오른 발화를 세는 부분 인덱스가 읽는다",
-	"gate_events.detected_by":   "어느 쪽이 알아챘는지다",
-	"gate_events.adjustments":   "단계를 바꾼 규칙의 이름이다",
-	"signals.item":              "같은 대화에서 같은 항목이 두 번 쌓이지 않게 하는 유일 키다",
-	"signals.status":            "근거 없는 판단을 막는 CHECK가 읽는다",
-	"signals.explicitness":      "근거 없는 판단을 막는 CHECK가 읽는다",
-	"memories.kind":             "기억의 종류다. 걱정거리인지가 드러난다",
-	"memories.sensitive":        "힘들어했던 일이라는 표시다. AI가 먼저 꺼내지 않게 거르는 데 쓴다",
-	"memories.due_date":         "다가오는 일의 날짜다. 지나간 뒤에 안부를 물을 때 쓴다",
+	// 같은 고정 문구가 한 대화에서 두 번 나가지 않게 하는 조건절과 CHECK가 읽는다.
+	"conversations.crisis_spoken_stage": "위기 고정 문구가 어느 단계까지 실제로 나갔는지다",
+	"gate_events.rule_stage":            "규칙이 본 단계다",
+	"gate_events.ai_stage":              "AI 판별이 본 단계다",
+	"gate_events.final_stage":           "최근에 단계가 오른 발화를 세는 부분 인덱스가 읽는다",
+	"gate_events.detected_by":           "어느 쪽이 알아챘는지다",
+	"gate_events.adjustments":           "단계를 바꾼 규칙의 이름이다",
+	"signals.item":                      "같은 대화에서 같은 항목이 두 번 쌓이지 않게 하는 유일 키다",
+	"signals.status":                    "근거 없는 판단을 막는 CHECK가 읽는다",
+	"signals.explicitness":              "근거 없는 판단을 막는 CHECK가 읽는다",
+	"memories.kind":                     "기억의 종류다. 걱정거리인지가 드러난다",
+	"memories.sensitive":                "힘들어했던 일이라는 표시다. AI가 먼저 꺼내지 않게 거르는 데 쓴다",
+	"memories.due_date":                 "다가오는 일의 날짜다. 지나간 뒤에 안부를 물을 때 쓴다",
 }
 
 // 아래 시험은 지금의 테이블이 아니라 규칙을 확인한다. 뒤에 더해지는 마이그레이션도 같은 규칙으로 걸러진다.

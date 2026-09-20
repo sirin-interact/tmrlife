@@ -1,45 +1,8 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { type APIRequestContext, type Page } from '@playwright/test';
+
+import { expect, PASSWORD, SESSION_COOKIE, test, uniqueEmail } from './support.ts';
 
 // 실제 서버, 실제 DB, 빌드된 웹앱을 브라우저로 밟아 본다. 띄우는 일은 `make e2e`(web/e2e/run.sh)가 한다.
-
-const PASSWORD = 'dawn-over-the-quiet-harbor-27';
-const SESSION_COOKIE = 'naeil_session';
-
-// 미리보기 서버는 운영 웹 서버와 같은 콘텐츠 보안 정책을 붙인다(vite.config.ts가 Caddyfile에서 읽어 온다).
-// 정책에 막힌 것이 하나라도 있으면 시나리오를 실패시킨다. <style>을 끼워 넣는 라이브러리를 들였을 때
-// 운영에서만 화면이 깨지는 일을 여기서 먼저 잡는다.
-let cspViolations: string[] = [];
-
-test.beforeEach(async ({ page }) => {
-  cspViolations = [];
-  // 화면을 새로 고치거나 옮겨도 이어지도록 페이지 밖에 모은다. 막힌 지시문과 주소만 남기고 화면의 글은 담지 않는다.
-  await page.exposeFunction('reportCspViolation', (violation: string) => {
-    cspViolations.push(violation);
-  });
-  await page.addInitScript(() => {
-    document.addEventListener('securitypolicyviolation', (event) => {
-      const report = (window as unknown as { reportCspViolation: (violation: string) => void })
-        .reportCspViolation;
-      report(`${event.effectiveDirective} ${event.blockedURI}`);
-    });
-  });
-});
-
-test.afterEach(async ({ page }) => {
-  const policy = await page.evaluate(async () => {
-    const response = await fetch('/', { method: 'HEAD' });
-    return response.headers.get('Content-Security-Policy');
-  });
-  // 정책이 붙어 있지 않으면 아래 확인은 아무것도 보지 않은 것이다.
-  expect(policy).toContain("style-src 'self'");
-  expect(cspViolations).toEqual([]);
-});
-
-/** 돌릴 때마다 다른 주소를 쓴다. 같은 DB로 다시 돌려도, 시나리오끼리도 부딪히지 않는다. */
-function uniqueEmail(): string {
-  const random = Math.random().toString(36).slice(2, 10);
-  return `e2e-${Date.now()}-${random}@example.com`;
-}
 
 const passwordField = (page: Page) => page.getByLabel('비밀번호', { exact: true });
 const homeAction = (page: Page) => page.getByRole('link', { name: '오늘 이야기하기' });

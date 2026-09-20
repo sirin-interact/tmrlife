@@ -162,6 +162,9 @@ test-web:
 .PHONY: lint
 lint: lint-server lint-web ## 정적 검사를 돌린다 (go vet, golangci-lint, ESLint)
 
+# golangci-lint는 이 저장소에서 다른 데 없는 규칙을 혼자 지킨다. 로그에 사용자의 글이 섞이지 못하게 하는 sloglint,
+# time.Now를 internal/clock 밖에서 막는 forbidigo, 계산 코어의 의존을 막는 depguard가 여기에만 있다.
+# 그래서 없다고 조용히 넘어가지 않는다. 설치된 것이 있으면 그것을, 없고 Docker가 돌면 CI와 같은 이미지를 쓴다.
 .PHONY: lint-server
 lint-server:
 	@echo "==> server: go vet ./..."
@@ -169,8 +172,12 @@ lint-server:
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		echo "==> server: golangci-lint run"; \
 		cd server && golangci-lint run ./...; \
+	elif docker info >/dev/null 2>&1; then \
+		echo "==> server: golangci-lint (Docker, $(GOLANGCI_LINT_IMAGE))"; \
+		$(MAKE) --no-print-directory lint-docker; \
 	else \
-		echo "-- golangci-lint가 설치되어 있지 않아 건너뜀 (go vet만 돌렸다). 설치 없이 돌리려면: make lint-docker"; \
+		echo "!! golangci-lint도 Docker도 없다. 이 검사는 CI에서 반드시 돈다 (sloglint, forbidigo, depguard가 여기에만 있다)."; \
+		exit 1; \
 	fi
 
 .PHONY: lint-docker
@@ -235,7 +242,6 @@ oapi-diff: ## 명세에서 만든 서버 코드가 명세와 어긋나지 않았
 check: sqlc-diff oapi-diff lint typecheck format-check test build-web ## 끝내기 전에 돌리는 전체 검사 (CI와 같은 범위)
 	@skipped=""; \
 	command -v sqlc >/dev/null 2>&1 || skipped="$$skipped sqlc-diff"; \
-	command -v golangci-lint >/dev/null 2>&1 || skipped="$$skipped golangci-lint(대신:make-lint-docker)"; \
 	[ -d web/node_modules ] || skipped="$$skipped web(lint,typecheck,format,test,build)"; \
 	docker info >/dev/null 2>&1 || skipped="$$skipped DB가-필요한-서버-테스트"; \
 	if [ -n "$$skipped" ]; then \
@@ -243,13 +249,25 @@ check: sqlc-diff oapi-diff lint typecheck format-check test build-web ## 끝내�
 	else \
 		echo "==> check 통과"; \
 	fi
+	@[ -z "$${GEMINI_API_KEY:-}" ] || echo "-- 참고: 실제 모델을 부르는 평가는 여기서 돌지 않는다. 돌리려면 make eval"
 
-# DB, API 서버, 빌드된 웹앱을 띄우고 브라우저(chromium)로 가입부터 로그아웃까지 밟아 본 뒤 모두 내린다.
-# 개발용 데이터베이스는 건드리지 않는다. 같은 DB 서버에 테스트용 데이터베이스를 돌릴 때마다 새로 만든다.
+# 실제 모델을 부르는 평가를 한자리에 모은다. 돈과 시간이 들기 때문에 check에서는 돌지 않고, 여기서만 돈다.
+# -race를 걸지 않는다. 모델을 기다리는 시간이 대부분이라 경합 검사가 잡을 것이 없고 시간만 배로 든다.
+.PHONY: eval
+eval: ## 실제 모델을 부르는 평가를 한꺼번에 돌린다 (돈과 시간이 든다)
+	@if [ -z "$${GEMINI_API_KEY:-}" ]; then echo "!! GEMINI_API_KEY가 없다"; exit 1; fi
+	@echo "==> server: 실제 모델 평가 (gate, engine, reply, diary, gemini)"
+	@cd server && GATE_LIVE_EVAL=1 GATE_INDEP=1 ENGINE_REDTEAM=1 REPLY_LIVE_EVAL=1 \
+		GEMINI_LIVE_TESTS=1 GEMINI_LIVE_EVAL=1 \
+		go test -count=1 -v -timeout 30m ./internal/gate/ ./internal/engine/ ./internal/reply/ ./internal/diary/ ./internal/ai/gemini/
+
+# DB, API 서버, 작업자, 빌드된 웹앱을 띄우고 브라우저(chromium)로 가입부터 일기까지 밟아 본 뒤 모두 내린다.
+# 일기 초안은 작업자가 만들기 때문에 서버만으로는 대화가 일기까지 가지 않는다.
+# 개발용 데이터베이스는 건드리지 않는다. 같은 DB 서버에 테스트용 데이터베이스를 돌릴 때마다 새로 만들고, 통과하면 지운다.
 # Playwright에 넘길 인자는 ARGS로 준다. 예: make e2e ARGS="--headed"
 #
 # 언어 모델은 언제나 정해 둔 답(scripted)으로 돈다. .env에 Gemini 키가 있으면 서버는 실제 모델을 고르는데,
 # 그러면 돌릴 때마다 답이 달라지고 돈이 들고 네트워크가 없으면 실패한다. 화면의 흐름을 보는 테스트가 기댈 것이 아니다.
 .PHONY: e2e
-e2e: ## 브라우저 흐름 테스트 (DB, 서버, 웹을 띄우고 Playwright를 돌린 뒤 내린다)
+e2e: ## 브라우저 흐름 테스트 (DB, 서버, 작업자, 웹을 띄우고 Playwright를 돌린 뒤 내린다)
 	@AI_PROVIDER=scripted bash web/e2e/run.sh $(ARGS)

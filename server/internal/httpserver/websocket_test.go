@@ -81,7 +81,15 @@ func TestWebSocketThroughMiddleware(t *testing.T) {
 			t.Fatal("서버가 내려가지 않았다")
 		}
 
-		line := logs.find(t, "request")
+		// 넘겨받은 연결은 net/http가 활성 연결로 세지 않는다. 그래서 Shutdown은 이 연결의 핸들러를 기다리지 않고,
+		// 접근 로그는 서버가 내려간 뒤에 찍히기도 한다. 한 번만 읽으면 기계가 바쁜 날에만 실패하는 시험이 된다.
+		var line map[string]any
+		for range 500 {
+			if line = logs.find(t, "request"); line != nil {
+				break
+			}
+			<-time.After(10 * time.Millisecond)
+		}
 		require.NotNil(t, line, "연결이 끝나면 접근 로그 한 줄이 남는다")
 		assert.Equal(t, "/ws", line["route"])
 		assert.NotContains(t, logs.String(), "ping")

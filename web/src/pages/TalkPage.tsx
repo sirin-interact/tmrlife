@@ -91,14 +91,14 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
         {!state.ending && connectionText !== null && <p>{connectionText}</p>}
         {state.notice !== null && <p>{noticeText(state.notice)}</p>}
       </div>
-      {state.phase === 'failed' && (
+      {(state.phase === 'failed' || state.phase === 'taken_over') && (
         <Button
           type="button"
           variant="outline"
           onClick={talk.reconnect}
           className="mt-2 self-start"
         >
-          {TALK_TEXT.reconnect}
+          {state.phase === 'taken_over' ? TALK_TEXT.takeOver : TALK_TEXT.reconnect}
         </Button>
       )}
 

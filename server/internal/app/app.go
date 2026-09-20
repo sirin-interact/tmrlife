@@ -184,10 +184,11 @@ func (d *Deps) NewAuthService(ctx context.Context) (*auth.Service, error) {
 type HTTPHandler struct {
 	// Echo는 서버가 받는 모든 경로가 붙은 핸들러다.
 	Echo *echo.Echo
-	// CloseSockets는 종료가 시작될 때 부른다. 열려 있는 대화 연결을 닫는다.
-	// net/http의 Shutdown은 넘겨받은 연결(WebSocket)을 닫아 주지 않아서, 부르지 않으면 대화를 열어 둔 사용자가
-	// 있는 동안 프로세스가 기다림의 끝까지 내려가지 못한다.
-	CloseSockets func()
+	// CloseSockets는 종료가 시작될 때 부른다. 열려 있는 대화 연결을 모두 닫고, 다 닫힌 뒤에 돌아온다.
+	// net/http의 Shutdown은 넘겨받은 연결(WebSocket)을 닫지도, 기다리지도 않는다. 부르지 않으면
+	// 접속 풀이 닫히고 프로세스가 끝날 때까지도 대화 소켓은 정리되지 않은 채로 남는다.
+	// 넘겨받은 컨텍스트가 먼저 끝나면 거기서 기다림을 멈춘다.
+	CloseSockets func(context.Context)
 }
 
 // NewHTTPHandler는 서버가 받는 모든 경로가 붙은 핸들러를 만든다. 서버만 부른다.

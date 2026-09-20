@@ -42,9 +42,12 @@ export class FakeSocket implements SocketLike {
     this.onmessage?.(new MessageEvent('message', { data }));
   }
 
-  /** 연결이 끊겼다(서버가 닫았거나 네트워크가 끊겼다). */
-  drop(): void {
-    this.onclose?.(new Event('close') as CloseEvent);
+  /**
+   * 연결이 끊겼다(서버가 닫았거나 네트워크가 끊겼다).
+   * code를 주면 서버가 그 코드로 닫은 것이다. 기본값은 인사 없이 끊겼을 때 브라우저가 주는 코드다.
+   */
+  drop(code = 1006): void {
+    this.onclose?.(new CloseEvent('close', { code }));
   }
 
   sentOfType(type: string): Array<Record<string, unknown>> {

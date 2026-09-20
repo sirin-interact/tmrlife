@@ -7,6 +7,7 @@ import {
   type ConversationState,
 } from '@/talk/conversationState';
 import {
+  CLOSE_CODE,
   encodeClientMessage,
   parseServerMessage,
   textLength,
@@ -212,10 +213,10 @@ export class ConversationClient {
       const message = parseServerMessage(event.data);
       if (message !== null) this.handleServerMessage(message);
     };
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       if (this.socket !== socket) return;
       this.socket = null;
-      this.handleClose();
+      this.handleClose(event.code);
     };
     // 오류 뒤에는 언제나 close가 따라온다. 뒷일은 거기서 한다.
     socket.onerror = null;
@@ -227,7 +228,8 @@ export class ConversationClient {
     }, TIMING.connectTimeoutMs);
   }
 
-  private handleClose(): void {
+  /** code는 서버가 닫으면서 붙인 코드다. 연결이 그냥 끊겼거나 이쪽에서 버린 연결에는 없다. */
+  private handleClose(code?: number): void {
     this.clear('connectTimer');
     this.clear('ackTimer');
     this.clear('replyTimer');
@@ -239,6 +241,19 @@ export class ConversationClient {
       // 끝내기는 나갔는데 답을 듣지 못했다. 다시 연결하면 서버가 새 대화를 열어 버린다.
       // 끝난 것으로 보고, 일기가 준비됐는지는 화면이 직접 확인하게 둔다.
       this.dispatch({ type: 'ended_unconfirmed' });
+      return;
+    }
+
+    if (code === CLOSE_CODE.takenOver) {
+      // 다른 화면이 대화를 이어받았다. 여기서 다시 이으면 그 화면에서 다시 빼앗아 오고,
+      // 두 화면이 끝없이 대화를 주고받는다. 이어가려면 사용자가 고르게 한다.
+      this.dispatch({ type: 'taken_over' });
+      return;
+    }
+    if (code === CLOSE_CODE.gone) {
+      // 계정이 사라졌다. 다시 이어도 같은 까닭으로 닫힌다. 로그인 상태를 확인하면 경로 보호가 데리고 나간다.
+      this.onHandshakeFailed?.();
+      this.dispatch({ type: 'gave_up' });
       return;
     }
 

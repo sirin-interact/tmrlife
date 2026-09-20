@@ -28,6 +28,7 @@ type Server struct {
 	httpServer   *http.Server
 	logger       *slog.Logger
 	drainTimeout time.Duration
+	onDrain      func(context.Context)
 }
 
 // ServerOptions는 서버를 띄우는 데 필요한 것들이다.
@@ -37,6 +38,12 @@ type ServerOptions struct {
 	Logger  *slog.Logger
 	// DrainTimeout이 0이면 DefaultDrainTimeout을 쓴다.
 	DrainTimeout time.Duration
+	// OnDrain은 내려가기 시작할 때 부르고, 돌아올 때까지 기다린다.
+	//
+	// net/http의 RegisterOnShutdown으로는 이 일을 할 수 없다. 거기 넘긴 함수는 고루틴으로 띄워질 뿐 기다려 주지 않고,
+	// 넘겨받은 연결(WebSocket)은 활성 연결로 세지 않아서 Shutdown이 바로 돌아온다. 그러면 접속 풀이 닫히고
+	// 프로세스가 끝날 때까지도 열린 소켓은 정리되지 않은 채다. 그런 연결을 가진 쪽은 여기로 넘긴다.
+	OnDrain func(context.Context)
 }
 
 // NewServer는 시간 제한이 걸린 서버를 만든다.
@@ -53,6 +60,7 @@ func NewServer(opts ServerOptions) *Server {
 	return &Server{
 		logger:       logger,
 		drainTimeout: drain,
+		onDrain:      opts.OnDrain,
 		httpServer: &http.Server{
 			Addr:    opts.Addr,
 			Handler: opts.Handler,
@@ -73,12 +81,6 @@ func NewServer(opts ServerOptions) *Server {
 			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelWarn),
 		},
 	}
-}
-
-// RegisterOnShutdown은 종료가 시작될 때 부를 함수를 등록한다.
-// Shutdown은 넘겨받은 연결(WebSocket)을 닫아주지 않으므로, 그런 연결을 가진 쪽이 여기서 직접 닫아야 한다.
-func (s *Server) RegisterOnShutdown(f func()) {
-	s.httpServer.RegisterOnShutdown(f)
 }
 
 func (s *Server) Run(ctx context.Context) error {
@@ -112,11 +114,26 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.drainTimeout)
 	defer cancel()
 
-	if err := s.httpServer.Shutdown(drainCtx); err != nil {
+	// 넘겨받은 연결을 정리하는 일은 문을 닫는 일과 나란히 시작한다. Shutdown이 그 일을 기다려 주지 않기 때문에
+	// 여기서 직접 기다린다. 먼저 문을 닫아야 정리하는 동안 새 연결이 들어오지 않는다.
+	drained := make(chan struct{})
+	go func() {
+		defer close(drained)
+		if s.onDrain != nil {
+			s.onDrain(drainCtx)
+		}
+	}()
+
+	shutdownErr := s.httpServer.Shutdown(drainCtx)
+	select {
+	case <-drained:
+	case <-drainCtx.Done():
+	}
+	if shutdownErr != nil {
 		// 기한 안에 끝나지 않은 요청이 있다. 남은 연결을 끊고 내려간다.
 		_ = s.httpServer.Close()
 		<-serveErr
-		return fmt.Errorf("drain in-flight requests: %w", err)
+		return fmt.Errorf("drain in-flight requests: %w", shutdownErr)
 	}
 	<-serveErr
 

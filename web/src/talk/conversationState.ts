@@ -15,6 +15,8 @@ export type ConnectionPhase =
   | 'reconnecting'
   /** 여러 번 해 봐도 이어지지 않았다. 사용자가 다시 시도를 눌러야 한다. */
   | 'failed'
+  /** 같은 계정의 다른 화면이 대화를 이어받았다. 여기서 이어가려면 사용자가 다시 연결해야 한다. */
+  | 'taken_over'
   /** 대화가 끝났다. */
   | 'ended';
 
@@ -74,6 +76,8 @@ export type ConversationEvent =
   | { type: 'connecting' }
   | { type: 'disconnected' }
   | { type: 'gave_up' }
+  /** 다른 화면이 대화를 이어받아 이 연결이 물러났다 */
+  | { type: 'taken_over' }
   | { type: 'server'; message: ServerMessage }
   | { type: 'submitted'; clientMessageId: string; text: string }
   | { type: 'retried'; clientMessageId: string }
@@ -311,6 +315,10 @@ export function conversationReducer(
 
     case 'gave_up':
       return { ...state, phase: 'failed' };
+
+    case 'taken_over':
+      // 이 연결로는 답이 오지 않는다. 기다리는 표시를 남겨 두지 않는다.
+      return { ...state, phase: 'taken_over', awaitingReply: false };
 
     case 'server':
       return applyServerMessage(state, event.message);

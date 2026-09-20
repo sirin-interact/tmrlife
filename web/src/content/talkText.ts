@@ -25,6 +25,7 @@ export const TALK_TEXT = {
   ending: '대화를 마치고 있어요.',
 
   reconnect: '다시 연결하기',
+  takeOver: '여기서 이어가기',
   resourcesTitle: '지금 바로 이야기할 수 있는 곳',
   resourcesAnnounce: '지금 바로 이야기할 수 있는 곳의 전화번호를 화면 위쪽에 띄워 두었어요.',
   call: '전화하기',
@@ -43,6 +44,7 @@ const PHASE_TEXT: Record<ConnectionPhase, string | null> = {
   ready: null,
   reconnecting: '연결이 잠시 끊겼어요. 다시 잇고 있어요.',
   failed: '연결이 이어지지 않아요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+  taken_over: '다른 화면에서 이야기를 이어가고 있어요. 여기서 이어가려면 아래를 눌러 주세요.',
   ended: null,
 };
 

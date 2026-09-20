@@ -3,6 +3,9 @@ package gemini_test
 // 이 파일의 시험은 실제 Gemini API를 부른다. GEMINI_API_KEY가 있을 때만 돌고, 없으면 건너뛴다.
 // 키가 있어도 돌리고 싶지 않으면 GEMINI_LIVE_TESTS=0을 준다.
 //
+// 기본으로 도는 것은 짧은 확인뿐이다. 여러 문장을 줄줄이 부르는 평가(GEMINI_LIVE_EVAL=1)는 일부러 켜야 돈다.
+// 고친 것과 상관없이 시간과 돈이 드는 시험이 기본 검사에 섞여 있으면, 검사를 돌리는 값이 조용히 비싸진다.
+//
 // 가짜 전송 계층으로는 확인할 수 없는 것만 본다: 안전 설정, 생각하기 수준, 스키마가 실제로 받아들여지는지,
 // 무거운 말에 답이 막히거나 비지 않는지, 예비 모델이 같은 요청을 받아 주는지.
 // 모델의 답은 부를 때마다 달라지므로 글의 내용은 단정하지 않는다. 걸린 시간과 토큰 수는 -v로 돌리면 보인다.
@@ -98,6 +101,21 @@ func newLiveHarness(t *testing.T) *liveHarness {
 		t.Skip("GEMINI_LIVE_TESTS=0이라 실제 API를 부르는 시험을 건너뛴다")
 	}
 
+	h := newLiveHarnessWithKey(t, key)
+	return h
+}
+
+// newLiveEvalHarness는 여러 문장을 줄줄이 부르는 평가용이다. 켜야만 돈다.
+func newLiveEvalHarness(t *testing.T) *liveHarness {
+	t.Helper()
+	if os.Getenv("GEMINI_LIVE_EVAL") != "1" {
+		t.Skip("GEMINI_LIVE_EVAL=1일 때만 도는 평가다 (make eval)")
+	}
+	return newLiveHarness(t)
+}
+
+func newLiveHarnessWithKey(t *testing.T, key string) *liveHarness {
+	t.Helper()
 	h := &liveHarness{models: loadLiveModels(), logs: &bytes.Buffer{}, clock: clock.Real{}}
 	client, err := gemini.New(context.Background(), gemini.Config{
 		APIKey: config.NewSecret(key),
@@ -270,7 +288,7 @@ func TestLive_JSONSchema(t *testing.T) {
 }
 
 func TestLive_AlarmingUtterances(t *testing.T) {
-	h := newLiveHarness(t)
+	h := newLiveEvalHarness(t)
 	alarming := []string{
 		"죽고 싶다",
 		"어제 자해했어",
@@ -326,7 +344,7 @@ func TestLive_AlarmingUtterances(t *testing.T) {
 }
 
 func TestLive_ThinkingLevels(t *testing.T) {
-	h := newLiveHarness(t)
+	h := newLiveEvalHarness(t)
 	tests := []struct {
 		role  string
 		model gemini.Model
@@ -362,7 +380,7 @@ func TestLive_ThinkingLevels(t *testing.T) {
 }
 
 func TestLive_Hedged(t *testing.T) {
-	h := newLiveHarness(t)
+	h := newLiveEvalHarness(t)
 	primary := h.llm(t, h.models.conversation)
 	fallback := h.llm(t, h.models.fallback)
 

@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
 import type { RecordDate } from '@/api/types';
-import { diaryQueryOptions } from '@/diary/queries';
+import { diaryArrivalQueryOptions, diaryQueryOptions } from '@/diary/queries';
 
 export const DRAFT_POLL_INTERVAL_MS = 3_000;
 /** 이만큼 확인해도 없으면 오래 걸린다고 알린다(약 1분). */
@@ -39,7 +39,7 @@ export function useDraftArrival(recordDate: RecordDate | null, enabled: boolean)
       polls += 1;
       try {
         const diary = await queryClient.fetchQuery({
-          ...diaryQueryOptions(date),
+          ...diaryArrivalQueryOptions(date),
           staleTime: 0,
           retry: false,
         });
@@ -47,6 +47,8 @@ export function useDraftArrival(recordDate: RecordDate | null, enabled: boolean)
         const seen = diary?.updated_at ?? null;
         if (baseline === undefined) baseline = seen;
         else if (seen !== baseline) {
+          // 방금 읽은 글을 그날의 일기 조회에 옮겨 둔다. 이어서 열리는 일기 화면이 다시 읽지 않아도 된다.
+          queryClient.setQueryData(diaryQueryOptions(date).queryKey, diary);
           setArrival({ arrived: true, slow: false });
           return;
         }

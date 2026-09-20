@@ -196,14 +196,17 @@ jobs:
           echo "${KUBECONFORM_SHA256}  ${RUNNER_TEMP}/kubeconform.tar.gz" | sha256sum --check
           tar -xzf "${RUNNER_TEMP}/kubeconform.tar.gz" -C "${RUNNER_TEMP}" kubeconform
 
+      # 서버가 읽는 설정 값이 ConfigMap에도 다 있는지 먼저 보고(빠진 값은 파드에서 코드의 기본값으로 조용히 돈다),
       # 두 구성을 kubectl kustomize로 펼친 뒤 스키마로 검사한다. 로컬의 make -C deploy validate와 같은 명령이다.
-      - name: 구성 펼치기와 검사
+      - name: 설정 값과 구성 검사
         run: |
           kubectl version --client
           make -C deploy validate KUBECONFORM="${RUNNER_TEMP}/kubeconform"
 
-  # 실제 DB와 API 서버, 빌드된 웹앱을 띄우고 브라우저로 가입부터 로그아웃까지 밟아 본다. 로컬의 make e2e와 같은 명령이다.
+  # 실제 DB와 API 서버, 작업자, 빌드된 웹앱을 띄우고 브라우저로 가입부터 대화와 일기까지 밟아 본다.
+  # 로컬의 make e2e와 같은 명령이다.
   # 화면과 API를 같은 출처로 묶어서 돌리므로 세션 쿠키와 다른 출처 차단이 운영과 같은 조건에서 확인된다.
+  # 대화 채널(WebSocket)도 같은 출처의 미리보기 서버를 거친다.
   e2e:
     name: e2e
     runs-on: ubuntu-latest

@@ -417,11 +417,12 @@ func TestQueueRunsDraftJob(t *testing.T) {
 		case <-time.After(15 * time.Second):
 			t.Fatal("작업자가 내려가지 않았다")
 		}
-		// 큐는 실패한 시도의 오류 문구를 제 로그와 작업 행에 남긴다. 거기에도 글이 없어야 한다.
+		// 큐는 실패한 시도의 오류 문구를 제 로그와 작업 행에 남긴다. 그 행은 일기가 암호문으로 누워 있는
+		// 바로 그 데이터베이스에 평문으로 남으므로, 정해 둔 이름만 적혀야 한다.
 		f.assertLogsClean()
 		var recorded string
 		require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT coalesce(array_to_string(errors, ' '), '') FROM river_job WHERE kind = 'diary_draft'`).Scan(&recorded))
-		assert.Contains(t, recorded, "ai: provider error")
+		assert.Contains(t, recorded, "ai_provider", "어떤 실패였는지는 남아야 한다")
 		assert.NotContains(t, recorded, "하기 싫었어")
 	})
 

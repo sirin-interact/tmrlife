@@ -384,13 +384,25 @@ func TestReadDiaries(t *testing.T) {
 	})
 
 	t.Run("전체 목록은 최근 날짜부터 자기 일기만 나온다", func(t *testing.T) {
-		rows, err := st.Queries().ListDiariesByUser(t.Context(), mina.ID)
+		rows, err := st.Queries().ListDiariesByUser(t.Context(), db.ListDiariesByUserParams{
+			UserID: mina.ID, MaxRows: 100,
+		})
 		require.NoError(t, err)
 		got := make([]uuid.UUID, 0, len(rows))
 		for _, row := range rows {
 			got = append(got, row.Diary.ID)
 		}
 		assert.Equal(t, []uuid.UUID{octoberStart.ID, septemberEnd.ID, septemberStart.ID, augustEnd.ID}, got)
+	})
+
+	t.Run("읽어 오는 개수는 상한에서 잘린다", func(t *testing.T) {
+		rows, err := st.Queries().ListDiariesByUser(t.Context(), db.ListDiariesByUserParams{
+			UserID: mina.ID, MaxRows: 2,
+		})
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "상한을 넘는 암호문은 아예 읽어 오지 않는다")
+		assert.Equal(t, octoberStart.ID, rows[0].Diary.ID)
+		assert.Equal(t, septemberEnd.ID, rows[1].Diary.ID)
 	})
 }
 

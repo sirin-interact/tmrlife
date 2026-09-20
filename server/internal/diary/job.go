@@ -140,27 +140,44 @@ func (w *Worker) work(ctx context.Context, args DraftArgs, try attempt) error {
 		return river.JobSnooze(0)
 	}
 
+	// 오류의 문구는 남기지 않는다. 정해 둔 이름만 남긴다.
+	//
+	// 다시 해 볼 실패는 이 함수가 돌려주는 오류가 작업 큐의 행(river_job.errors)에 그대로 적힌다.
+	// 그 행은 일기가 암호문으로 누워 있는 바로 그 데이터베이스에 평문으로 남는다.
+	// 지금 여기로 오는 오류는 모두 정해진 문구만 담고 있지만, 그 약속을 이 자리에서 지키게 한다.
 	attrs = append(attrs,
 		slog.String("failure", failureName(err)),
-		slog.String("error", err.Error()),
 		slog.Any("result", result),
 	)
 	lastAttempt := try.number >= try.max
 	if !lastAttempt && !Permanent(err) {
 		w.logger.LogAttrs(ctx, slog.LevelWarn, "diary draft job failed, will retry", attrs...)
-		return err
+		return tokenError{name: failureName(err), err: err}
 	}
 
 	gaveUp, giveUpErr := w.service.GiveUp(ctx, target)
 	if giveUpErr != nil {
 		w.logger.LogAttrs(ctx, slog.LevelError, "diary draft job could not give up cleanly",
-			append(attrs, slog.String("give_up_error", giveUpErr.Error()))...)
-		return errors.Join(err, giveUpErr)
+			append(attrs, slog.String("give_up_failure", failureName(giveUpErr)))...)
+		return tokenError{name: failureName(err), err: errors.Join(err, giveUpErr)}
 	}
 	w.logger.LogAttrs(ctx, slog.LevelWarn, "diary draft job gave up",
 		append(attrs, slog.String("give_up_outcome", string(gaveUp.Outcome)))...)
 	return nil
 }
+
+// tokenError는 감싼 오류를 errors.Is로 그대로 가릴 수 있게 두되, 글로는 정해 둔 이름만 내놓는다.
+//
+// 다시 해 볼 실패는 Work가 돌려주는 오류가 작업 큐의 행에 그대로 적힌다. 그 행은 일기가 암호문으로 누워 있는
+// 바로 그 데이터베이스에 평문으로 남는다. 지금 여기로 오는 오류는 모두 정해진 문구만 담고 있지만,
+// 그 약속을 다음에 오류 길이 하나 늘어나는 날에도 지키려면 마지막 자리에서 한 번 걸러야 한다.
+type tokenError struct {
+	name string
+	err  error
+}
+
+func (e tokenError) Error() string { return "diary: draft failed: " + e.name }
+func (e tokenError) Unwrap() error { return e.err }
 
 // failureName은 실패를 로그와 지표에 쓸 고정된 이름으로 바꾼다.
 func failureName(err error) string {

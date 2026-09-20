@@ -75,10 +75,14 @@ WHERE d.user_id = sqlc.arg(user_id)
 ORDER BY d.record_date;
 
 -- name: ListDiariesByUser :many
--- 그 사용자의 일기 전부를 최근 날짜부터 돌려준다. 일기 글은 암호문이라 DB에서 찾을 수 없다.
--- 검색은 본인의 일기를 모두 읽어 풀어서 메모리에서 한다.
+-- 그 사용자의 일기를 최근 날짜부터 max_rows개까지 돌려준다. 일기 글은 암호문이라 DB에서 찾을 수 없다.
+-- 검색은 본인의 일기를 읽어 풀어서 메모리에서 한다.
+--
+-- 상한을 SQL에 두는 까닭: 부르는 쪽이 몇 개까지 풀어 볼지를 정해 두어도, 행을 모두 받아 온 뒤에 그 수를 세면
+-- 암호문은 이미 메모리에 다 올라온 뒤다. 읽어 오는 양과 풀어 보는 양이 어긋나지 않게 같은 값으로 자른다.
 SELECT sqlc.embed(dr), d.record_date
 FROM diaries AS dr
 JOIN days AS d ON d.id = dr.day_id
 WHERE d.user_id = sqlc.arg(user_id)
-ORDER BY d.record_date DESC;
+ORDER BY d.record_date DESC
+LIMIT sqlc.arg(max_rows);

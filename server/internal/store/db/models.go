@@ -22,17 +22,18 @@ type Consent struct {
 }
 
 type Conversation struct {
-	ID               uuid.UUID
-	UserID           uuid.UUID
-	DayID            uuid.UUID
-	Status           string
-	StartedMode      string
-	StartedAt        time.Time
-	EndedAt          *time.Time
-	EndReason        *string
-	ProcessingStatus string
-	CreatedAt        time.Time
-	CheckState       string
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	DayID             uuid.UUID
+	Status            string
+	StartedMode       string
+	StartedAt         time.Time
+	EndedAt           *time.Time
+	EndReason         *string
+	ProcessingStatus  string
+	CreatedAt         time.Time
+	CheckState        string
+	CrisisSpokenStage int16
 }
 
 type Day struct {

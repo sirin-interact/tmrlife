@@ -27,9 +27,9 @@ const (
 	// snippetContextRunes는 검색 결과에서 맞은 자리의 앞뒤로 함께 보내는 글자 수다.
 	snippetContextRunes = 30
 
-	// maxSearchScan은 검색 한 번에 풀어 볼 일기의 최대 개수다.
+	// maxSearchScan은 검색 한 번에 읽어 와 풀어 볼 일기의 최대 개수다. 읽어 오는 쿼리의 상한도 이 값이다.
 	//
-	// 일기 글은 암호문이라 DB에서 찾을 수 없다. 본인의 일기를 모두 읽어 풀어서 메모리에서 찾는 수밖에 없는데,
+	// 일기 글은 암호문이라 DB에서 찾을 수 없다. 본인의 일기를 읽어 풀어서 메모리에서 찾는 수밖에 없는데,
 	// 그 값은 일기 수에 비례해 늘어난다. 하루에 하나이므로 이 값은 여덟 해가 넘는 기록이다.
 	// 그보다 오래 쓴 사용자가 생기면 검색을 DB 쪽으로 옮겨야 한다(찾을 수 있는 색인을 따로 두는 방법).
 	// 그때까지는 최근 것부터 이만큼만 보고, 더 오래된 것은 찾지 않는다.
@@ -233,7 +233,9 @@ func (s *diaryService) search(ctx context.Context, userID uuid.UUID, raw string)
 		return nil, invalidField(ProblemFieldQ)
 	}
 
-	rows, err := s.store.Queries().ListDiariesByUser(ctx, userID)
+	rows, err := s.store.Queries().ListDiariesByUser(ctx, db.ListDiariesByUserParams{
+		UserID: userID, MaxRows: maxSearchScan,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list diaries: %w", err)
 	}
@@ -460,7 +462,7 @@ func monthBounds(month string) (from, to recorddate.Date, err error) {
 // recordDateOf는 경로에서 온 날짜를 기록 날짜로 바꾼다.
 // 명세의 검증기가 이미 꼴과 실제로 있는 날짜인지를 본다. 그래도 값을 믿지 않고 한 번 더 가른다.
 func recordDateOf(in RecordDate) (recorddate.Date, error) {
-	date, err := recorddate.New(in.Time.Year(), in.Time.Month(), in.Time.Day())
+	date, err := recorddate.New(in.Year(), in.Month(), in.Day())
 	if err != nil {
 		return recorddate.Date{}, newProblem(http.StatusBadRequest, ProblemCodeValidationFailed)
 	}

@@ -153,10 +153,19 @@ func TestServer_GracefulShutdown(t *testing.T) {
 		}
 	})
 
-	t.Run("종료가 시작되면 등록해 둔 정리 함수가 불린다", func(t *testing.T) {
-		s := NewServer(ServerOptions{Handler: http.NotFoundHandler()})
+	// 넘겨받은 연결(WebSocket)을 닫는 일이 여기에 걸린다. 부르기만 하고 돌아가 버리면
+	// 접속 풀이 닫히고 프로세스가 끝날 때까지도 소켓은 열린 채다.
+	t.Run("종료가 시작되면 정리 함수를 부르고 끝날 때까지 기다린다", func(t *testing.T) {
 		called := make(chan struct{})
-		s.RegisterOnShutdown(func() { close(called) })
+		finished := make(chan struct{})
+		s := NewServer(ServerOptions{
+			Handler: http.NotFoundHandler(),
+			OnDrain: func(context.Context) {
+				close(called)
+				time.Sleep(200 * time.Millisecond)
+				close(finished)
+			},
+		})
 		ln := listenLocal(t)
 
 		ctx, cancel := context.WithCancel(t.Context())
@@ -170,6 +179,34 @@ func TestServer_GracefulShutdown(t *testing.T) {
 			t.Fatal("정리 함수가 불리지 않았다")
 		}
 		require.NoError(t, <-serveDone)
+		select {
+		case <-finished:
+		default:
+			t.Fatal("정리가 끝나기 전에 Serve가 돌아왔다")
+		}
+	})
+
+	t.Run("정리가 기한 안에 끝나지 않으면 거기서 그만 기다린다", func(t *testing.T) {
+		release := make(chan struct{})
+		t.Cleanup(func() { close(release) })
+		s := NewServer(ServerOptions{
+			Handler:      http.NotFoundHandler(),
+			DrainTimeout: 100 * time.Millisecond,
+			OnDrain:      func(context.Context) { <-release },
+		})
+		ln := listenLocal(t)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		serveDone := make(chan error, 1)
+		go func() { serveDone <- s.Serve(ctx, ln) }()
+		cancel()
+
+		select {
+		case err := <-serveDone:
+			require.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("정리를 기다리다 내려가지 못했다")
+		}
 	})
 
 	t.Run("이미 쓰이는 주소면 Run이 오류를 돌려준다", func(t *testing.T) {

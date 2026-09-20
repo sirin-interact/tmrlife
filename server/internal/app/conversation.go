@@ -86,6 +86,9 @@ func (d *Deps) newReply(model ai.LLM) (*reply.Generator, error) {
 	}
 	generator, err := reply.New(model, set, catalogue, reply.Options{
 		Thinking: string(d.Config.LLM.ConversationThinking),
+		// 기다리는 시간의 상한을 여기서 건다. 걸지 않으면 한 턴이 부른 쪽의 컨텍스트만 따라 몇 분씩 이어져서,
+		// 사용자는 답도 못 받고 끝내기도 하지 못한 채 앉아 있게 된다. 시간을 다 쓰면 미리 써 둔 말이 나간다.
+		Budget: d.Config.LLM.ReplyBudget,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create reply generator: %w", err)
@@ -126,6 +129,7 @@ func (d *Deps) newConversationChannel(ctx context.Context) (*api.Conversation, e
 		IdleEndAfter:    cfg.Conversation.IdleEndAfter,
 		MaxMessageBytes: cfg.WebSocket.MaxMessageBytes,
 		MessageRate:     api.RateLimit(cfg.WebSocket.MessageRate),
+		MaxKeys:         cfg.RateLimits.MaxKeys,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create conversation channel: %w", err)

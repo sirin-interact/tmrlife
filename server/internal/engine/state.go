@@ -28,7 +28,7 @@ func (e *Engine) gateState(ctx context.Context, s *Session, now time.Time) crisi
 	rows, err := e.store.Queries().ListSignalRowsByUser(ctx, s.user.ID)
 	if err != nil {
 		e.logger.LogAttrs(ctx, slog.LevelError, "signal rows cannot be read",
-			slog.Any("conversation", s), slog.String("error", err.Error()))
+			slog.Any("conversation", s), slog.String("failure", failureName(err)))
 		return crisis.State{}
 	}
 	if len(rows) == 0 {
@@ -40,7 +40,7 @@ func (e *Engine) gateState(ctx context.Context, s *Session, now time.Time) crisi
 		date, err := store.RecordDate(row.RecordDate)
 		if err != nil {
 			e.logger.LogAttrs(ctx, slog.LevelError, "signal row has an unreadable record date",
-				slog.Any("conversation", s), slog.String("error", err.Error()))
+				slog.Any("conversation", s), slog.String("failure", failureName(err)))
 			return crisis.State{}
 		}
 		item, itemErr := signal.ParseItem(row.Item)
@@ -63,13 +63,13 @@ func (e *Engine) gateState(ctx context.Context, s *Session, now time.Time) crisi
 	days, err := signal.MergeDays(byDate)
 	if err != nil {
 		e.logger.LogAttrs(ctx, slog.LevelError, "signal days cannot be merged",
-			slog.Any("conversation", s), slog.String("error", err.Error()))
+			slog.Any("conversation", s), slog.String("failure", failureName(err)))
 		return crisis.State{}
 	}
 	evaluation, err := assess.EvaluateLive(days, today, e.params)
 	if err != nil {
 		e.logger.LogAttrs(ctx, slog.LevelError, "live evaluation failed",
-			slog.Any("conversation", s), slog.String("error", err.Error()))
+			slog.Any("conversation", s), slog.String("failure", failureName(err)))
 		return crisis.State{}
 	}
 	return evaluation.GateState()

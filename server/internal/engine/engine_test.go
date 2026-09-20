@@ -193,9 +193,7 @@ func TestTurnAtStageRespond(t *testing.T) {
 		assert.Contains(t, text.Text, "109")
 		assert.NotContains(t, text.Speech, "109", "음성으로 나가는 글은 번호를 한글로 푼다")
 
-		events := f.sink.all()
-		resources, ok := events[len(events)-1].(engine.Resources)
-		require.True(t, ok, "고정 문구 다음에 자원이 나간다")
+		resources := f.sink.lastResources(t)
 		require.Len(t, resources.Items, 3)
 		assert.Equal(t, "suicide_prevention_109", resources.Items[0].ID)
 
@@ -216,9 +214,7 @@ func TestTurnAtStageRespond(t *testing.T) {
 		text := f.sink.lastText(t)
 		assert.Equal(t, phrases.CrisisUrgent, text.Phrase)
 
-		events := f.sink.all()
-		resources, ok := events[len(events)-1].(engine.Resources)
-		require.True(t, ok)
+		resources := f.sink.lastResources(t)
 		require.Len(t, resources.Items, 3)
 		assert.Equal(t, "suicide_prevention_109", resources.Items[0].ID)
 		assert.Equal(t, "emergency_119", resources.Items[1].ID)

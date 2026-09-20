@@ -52,6 +52,14 @@ const (
 	closeTimeout = 3 * time.Second
 	// shutdownGrace는 서버가 내려갈 때 돌던 턴을 기다리는 시간이다. 넘기면 턴의 컨텍스트를 취소한다.
 	shutdownGrace = 5 * time.Second
+
+	// maxSocketsPerUser는 사용자 한 사람이 동시에 열어 둘 수 있는 소켓의 수다.
+	// start를 보내지 않은 연결은 사용자의 자리(live)에 앉지 않아서 물려받기로 정리되지 않는다.
+	// 그런 연결만 잔뜩 열어 두면 고루틴과 소켓이 한도 없이 쌓인다. 셋이면 죽어 가는 연결과 새 연결이 겹쳐도 넉넉하다.
+	maxSocketsPerUser = 3
+
+	// defaultRateMaxKeys는 사용자별 한도가 기억하는 사용자의 최대 수다.
+	defaultRateMaxKeys = 50_000
 )
 
 // ConversationOptions는 대화 채널을 만드는 데 필요한 것이다.
@@ -69,8 +77,10 @@ type ConversationOptions struct {
 
 	// MaxMessageBytes는 클라이언트가 보내는 메시지 하나의 최대 크기다.
 	MaxMessageBytes int64
-	// MessageRate는 연결 하나가 보낼 수 있는 메시지의 빈도다.
+	// MessageRate는 사용자가 모델을 부르는 글을 보낼 수 있는 빈도다. 같은 통을 연결 하나 안에서도 쓴다.
 	MessageRate RateLimit
+	// MaxKeys는 사용자별 한도가 기억하는 사용자의 최대 수다. 0이면 defaultRateMaxKeys다.
+	MaxKeys int
 
 	// PingInterval, PingTimeout, DiaryPollInterval, DiaryPollTimeout이 0이면 위의 기본값을 쓴다.
 	PingInterval      time.Duration
@@ -86,10 +96,19 @@ type ConversationOptions struct {
 type Conversation struct {
 	opts ConversationOptions
 
+	// userLimiter는 사용자마다 모델을 부르는 글의 빈도를 잰다.
+	//
+	// 연결마다 새 통을 주면 다시 잇는 것만으로 한도가 처음부터 다시 차서, 설정한 값이 비용의 상한이 되지 못한다.
+	// 프레임을 풀어 보기 전에 막는 연결 단위의 통은 그대로 두고, 돈이 드는 글만 여기서 한 번 더 센다.
+	// 다시 잇느라 오간 start는 이 통을 쓰지 않는다. 신호가 나쁜 곳에 있는 사람이 정작 말을 걸 때 막히면 안 된다.
+	userLimiter *tokenBuckets
+
 	// mu는 아래의 목록과 닫힘 표시를 지킨다.
 	mu sync.Mutex
 	// live는 사용자마다 지금 열려 있는 연결이다. 열린 대화가 사용자마다 하나라서 키도 사용자다.
 	live map[uuid.UUID]*conversationConn
+	// sockets는 사용자마다 지금 열려 있는 소켓의 수다. start를 보내지 않은 연결도 여기서 센다.
+	sockets map[uuid.UUID]int
 	// draining이면 서버가 내려가는 중이라 새 연결을 받지 않는다.
 	draining bool
 }
@@ -110,7 +129,11 @@ func NewConversation(opts ConversationOptions) (*Conversation, error) {
 	case opts.MaxMessageBytes <= 0:
 		return nil, errors.New("api: conversation needs a message size limit")
 	}
-	if _, err := newTokenBuckets(opts.Clock, opts.MessageRate, 1); err != nil {
+	if opts.MaxKeys <= 0 {
+		opts.MaxKeys = defaultRateMaxKeys
+	}
+	userLimiter, err := newTokenBuckets(opts.Clock, opts.MessageRate, opts.MaxKeys)
+	if err != nil {
 		return nil, fmt.Errorf("api: conversation message rate: %w", err)
 	}
 
@@ -126,7 +149,12 @@ func NewConversation(opts ConversationOptions) (*Conversation, error) {
 	if opts.DiaryPollTimeout <= 0 {
 		opts.DiaryPollTimeout = DefaultDiaryPollTimeout
 	}
-	return &Conversation{opts: opts, live: make(map[uuid.UUID]*conversationConn)}, nil
+	return &Conversation{
+		opts:        opts,
+		userLimiter: userLimiter,
+		live:        make(map[uuid.UUID]*conversationConn),
+		sockets:     make(map[uuid.UUID]int),
+	}, nil
 }
 
 // Shutdown은 열려 있는 연결을 모두 닫는다. 서버가 내려가기 시작할 때 부른다.
@@ -135,7 +163,7 @@ func NewConversation(opts ConversationOptions) (*Conversation, error) {
 // 대화를 열어 둔 사용자가 있는 동안에는 프로세스가 기다림의 끝까지 내려가지 못한다.
 // 돌고 있던 턴에는 잠깐의 말미를 주고, 그래도 끝나지 않으면 컨텍스트를 취소한다. 대화는 열린 채로 남아
 // 다시 연결하면 이어지고, 돌아오지 않으면 주기 작업이 닫는다.
-func (c *Conversation) Shutdown() {
+func (c *Conversation) Shutdown(ctx context.Context) {
 	c.mu.Lock()
 	c.draining = true
 	conns := make([]*conversationConn, 0, len(c.live))
@@ -144,8 +172,48 @@ func (c *Conversation) Shutdown() {
 	}
 	c.mu.Unlock()
 
+	// 하나씩 차례로 닫지 않는다. 연결마다 돌던 턴을 기다리는 유예와 닫는 인사가 붙어서, 열 사람이 이야기하던 중이면
+	// 내려가는 데 주어진 시간을 통째로 넘긴다. 연결끼리 함께 쓰는 것이 없으므로 나란히 닫는다.
+	var wg sync.WaitGroup
 	for _, conn := range conns {
-		conn.close(websocket.StatusGoingAway, "server shutting down")
+		wg.Add(1)
+		go func(conn *conversationConn) {
+			defer wg.Done()
+			conn.close(ctx, websocket.StatusGoingAway, "server shutting down")
+		}(conn)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		wg.Wait()
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
+	c.opts.Logger.LogAttrs(ctx, slog.LevelInfo, "conversation sockets drained",
+		slog.Int("connections", len(conns)))
+}
+
+// reserveSocket은 사용자의 소켓 하나를 셈에 넣는다. 한도를 넘겼으면 거짓이다.
+func (c *Conversation) reserveSocket(userID uuid.UUID) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.draining || c.sockets[userID] >= maxSocketsPerUser {
+		return false
+	}
+	c.sockets[userID]++
+	return true
+}
+
+func (c *Conversation) releaseSocket(userID uuid.UUID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if n := c.sockets[userID]; n <= 1 {
+		delete(c.sockets, userID)
+	} else {
+		c.sockets[userID] = n - 1
 	}
 }
 
@@ -164,6 +232,11 @@ func (c *Conversation) serve(ec *echo.Context) error {
 		// 내려가는 중에 올라온 연결이다. 열어 봐야 곧 닫힌다.
 		return newProblem(http.StatusServiceUnavailable, ProblemCodeServiceUnavailable)
 	}
+	// 자리를 먼저 잡는다. 소켓을 올린 뒤에 세면 한도를 넘긴 연결도 고루틴과 파일 기술자를 이미 차지한 뒤다.
+	if !c.reserveSocket(principal.User.ID) {
+		return newProblem(http.StatusTooManyRequests, ProblemCodeRateLimited)
+	}
+	defer c.releaseSocket(principal.User.ID)
 
 	// 출처는 앞의 미들웨어가 이미 보았다(crossOriginProtection이 연결을 여는 GET을 상태 변경 요청과 같게 다룬다).
 	// 소켓 라이브러리의 검사는 꺼 둔다. 두 곳에서 각자 판단하면 한쪽을 고칠 때 다른 쪽이 조용히 남는다.
@@ -176,6 +249,7 @@ func (c *Conversation) serve(ec *echo.Context) error {
 		c.opts.Logger.LogAttrs(req.Context(), slog.LevelDebug, "conversation socket was not accepted",
 			slog.String("request_id", httpserver.RequestID(req.Context())),
 		)
+		// 소켓 라이브러리가 이미 오류 응답을 썼다. 오류를 올리면 두 번 쓰게 된다.
 		return nil
 	}
 	// 라이브러리가 먼저 연결을 끊어 버리면 한도를 넘겼다는 메시지를 보낼 수 없다. 크기는 직접 잰다.
@@ -183,6 +257,10 @@ func (c *Conversation) serve(ec *echo.Context) error {
 
 	limiter, err := newTokenBuckets(c.opts.Clock, c.opts.MessageRate, 1)
 	if err != nil {
+		// 손잡기가 끝나 응답을 가로챘다. 오류를 올리면 닫힌 연결에 쓰려 한다.
+		c.opts.Logger.LogAttrs(req.Context(), slog.LevelDebug, "conversation rate limiter was not built",
+			slog.String("request_id", httpserver.RequestID(req.Context())),
+		)
 		_ = socket.Close(websocket.StatusInternalError, "")
 		return nil
 	}
@@ -253,24 +331,41 @@ type conversationConn struct {
 	turnCancel context.CancelFunc
 	// turnDone은 돌던 턴이 끝나면 닫힌다.
 	turnDone chan struct{}
+	// turnResult는 돌고 있는 턴의 결과를 받는다. 도는 턴이 없으면 nil이라 고르지 않는다.
+	turnResult chan turnOutcome
+}
+
+// turnOutcome은 따로 돌린 턴 하나가 끝난 결과다.
+type turnOutcome struct {
+	clientMessageID uuid.UUID
+	turn            engine.Turn
+	err             error
 }
 
 // run은 연결이 끝날 때까지 메시지를 받아 처리한다.
+//
+// 턴은 따로 돌린다. 턴이 도는 동안에도 이 고리는 프레임을 계속 읽는다. 그러지 않으면 끝내기 단추가
+// 모델이 답할 때까지 먹히지 않는다. 끝내기 버튼은 언제나 있어야 하고, 대화 모델은 몇십 초씩 걸릴 수 있다.
+// 턴이 도는 동안 들어온 사용자의 글은 하나만 받아 두었다가 턴이 끝난 뒤에 처리해 순서를 지킨다.
 func (c *conversationConn) run(ctx context.Context) {
 	defer c.channel.unregister(c)
 	defer func() { _ = c.socket.CloseNow() }()
 
-	// 연결이 끊기거나 닫히면 이 컨텍스트가 끝난다. ping과 무응답 타이머가 함께 물러난다.
+	// 연결이 끊기거나 닫히면 이 컨텍스트가 끝난다. 돌던 모델 호출, ping, 무응답 타이머가 함께 물러난다.
+	// 취소를 기다림보다 먼저 등록한다. defer는 쌓인 반대 순서로 도므로, 이 순서라야 취소가 먼저 돌고 그다음에 기다린다.
+	// 반대로 두면 ping이 제 차례를 기다리는 동안 고루틴과 소켓이 그대로 남는다(운영 기본값으로 30초).
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	var wg sync.WaitGroup
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		c.keepAlive(ctx)
 	}()
-	defer wg.Wait()
 
 	idle := newIdleTimers(c.channel.opts.IdleCheckAfter, c.channel.opts.IdleEndAfter)
 	defer idle.stop()
@@ -280,24 +375,55 @@ func (c *conversationConn) run(ctx context.Context) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		// 읽기가 끝났다는 것은 상대가 사라졌다는 뜻이다. 돌고 있던 모델 호출을 여기서 멈춘다.
+		// 멈추지 않으면 탭을 닫고 간 사람을 위해 돈이 드는 호출이 끝까지 돌고, 다시 열었을 때 그만큼 기다리게 된다.
+		defer cancel()
 		defer close(incoming)
 		readErr <- c.readLoop(ctx, incoming)
 	}()
 
+	// deferred는 턴이 도는 동안 받아 둔 메시지다. 하나를 들고 있는 동안에는 소켓에서 더 읽지 않는다.
+	var deferred any
 	for {
+		frames := incoming
+		if deferred != nil {
+			frames = nil
+		}
 		select {
 		case <-ctx.Done():
 			return
 
-		case data, ok := <-incoming:
+		case outcome := <-c.turnResult:
+			if !c.finishTurn(ctx, outcome) {
+				return
+			}
+			if deferred != nil {
+				message := deferred
+				deferred = nil
+				if !c.dispatch(ctx, message) {
+					return
+				}
+			}
+			idle.restart(c.session != nil && !c.ended)
+
+		case data, ok := <-frames:
 			if !ok {
 				c.reportRead(ctx, readErr)
 				return
 			}
-			if !c.handleFrame(ctx, data) {
+			message, ok := c.decodeFrame(ctx, data)
+			if !ok {
+				continue
+			}
+			// 턴이 도는 동안에도 끝내기는 바로 받는다. 나머지는 차례를 지키려고 뒤로 미룬다.
+			if _, isEnd := message.(WsEnd); c.turnRunning() && !isEnd {
+				deferred = message
+				continue
+			}
+			if !c.dispatch(ctx, message) {
 				return
 			}
-			idle.restart(c.session != nil && !c.ended)
+			idle.restart(c.session != nil && !c.ended && !c.turnRunning())
 
 		case <-idle.check():
 			// 3분쯤 말이 없다. 한 번 묻고 다시 기다린다.
@@ -343,6 +469,17 @@ func (c *conversationConn) readLoop(ctx context.Context, out chan<- []byte) erro
 			return err
 		}
 		if typ != websocket.MessageText {
+			// 남은 바이트를 버리지 않으면 다음 프레임의 머리를 이 바이트에서 읽는다. 그러면 규약 위반으로 연결이 끊긴다.
+			n, err := io.Copy(io.Discard, io.LimitReader(reader, limit+1))
+			if err != nil {
+				return err
+			}
+			if n > limit {
+				// 한도를 넘겼다. 남은 바이트는 읽지 않는다. 글일 때와 똑같이 알리고 닫는다.
+				c.sendError(ctx, WsErrorCodeMessageTooLarge, nil)
+				c.close(ctx, websocket.StatusMessageTooBig, "message too large")
+				return nil
+			}
 			c.sendError(ctx, WsErrorCodeInvalidMessage, nil)
 			continue
 		}
@@ -354,7 +491,7 @@ func (c *conversationConn) readLoop(ctx context.Context, out chan<- []byte) erro
 		if int64(len(data)) > limit {
 			// 남은 바이트는 읽지 않는다. 알리고 바로 닫는다.
 			c.sendError(ctx, WsErrorCodeMessageTooLarge, nil)
-			c.close(websocket.StatusMessageTooBig, "message too large")
+			c.close(ctx, websocket.StatusMessageTooBig, "message too large")
 			return nil
 		}
 		select {
@@ -378,33 +515,37 @@ func (c *conversationConn) keepAlive(ctx context.Context) {
 			err := c.socket.Ping(pingCtx)
 			cancel()
 			if err != nil {
-				c.close(websocket.StatusPolicyViolation, "ping timed out")
+				c.close(ctx, websocket.StatusPolicyViolation, "ping timed out")
 				return
 			}
 		}
 	}
 }
 
-// handleFrame은 메시지 하나를 다룬다. 연결을 이어가면 true다.
-func (c *conversationConn) handleFrame(ctx context.Context, data []byte) bool {
+// decodeFrame은 프레임 하나를 풀어 본다. 두 번째 값이 거짓이면 이미 알렸고 더 볼 것이 없다.
+func (c *conversationConn) decodeFrame(ctx context.Context, data []byte) (any, bool) {
 	if allowed, _ := c.limiter.take("connection"); !allowed {
 		// 어느 글인지는 모른 채로 거절한다. 풀어 보기 전에 막는 것이 한도의 뜻이다.
 		c.sendError(ctx, WsErrorCodeRateLimited, nil)
-		return true
+		return nil, false
 	}
 
 	var envelope WsClientMessage
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		c.sendError(ctx, WsErrorCodeInvalidMessage, nil)
-		return true
+		return nil, false
 	}
 	// 풀어낸 오류의 문구에는 클라이언트가 보낸 type이 그대로 들어 있다. 로그에도 응답에도 옮기지 않는다.
 	message, err := envelope.ValueByDiscriminator()
 	if err != nil {
 		c.sendError(ctx, WsErrorCodeInvalidMessage, nil)
-		return true
+		return nil, false
 	}
+	return message, true
+}
 
+// dispatch는 풀어낸 메시지 하나를 다룬다. 연결을 이어가면 true다.
+func (c *conversationConn) dispatch(ctx context.Context, message any) bool {
 	switch m := message.(type) {
 	case WsStart:
 		return c.handleStart(ctx, m)
@@ -415,6 +556,9 @@ func (c *conversationConn) handleFrame(ctx context.Context, data []byte) bool {
 			c.sendError(ctx, WsErrorCodeNotStarted, nil)
 			return true
 		}
+		// 끝내기는 돌고 있는 턴을 먼저 멈춘다. 엔진의 End는 그 턴이 쥔 잠금을 기다리기 때문에,
+		// 멈추지 않고 부르면 모델이 답할 때까지 끝내기가 먹히지 않는다.
+		c.stopTurn(ctx)
 		return c.endConversation(ctx, store.EndReasonUser)
 	default:
 		c.sendError(ctx, WsErrorCodeInvalidMessage, nil)
@@ -435,12 +579,16 @@ func (c *conversationConn) handleStart(ctx context.Context, m WsStart) bool {
 
 	previous, ok := c.channel.register(c)
 	if !ok {
-		c.close(websocket.StatusGoingAway, "server shutting down")
+		c.close(ctx, websocket.StatusGoingAway, "server shutting down")
 		return false
 	}
 	if previous != nil {
-		// 앞선 연결이 돌리던 턴은 멈추고 닫는다. 이미 저장된 것은 그대로 남는다.
-		previous.close(statusTakenOver, "another connection took over")
+		// 앞선 연결이 돌리던 턴은 바로 멈추고, 그 턴이 끝난 것을 확인한 뒤에 대화를 연다.
+		// 방금 화면을 연 사람은 옛 화면의 답을 기다리지 않는다. 다만 순서는 지켜야 한다.
+		// 옛 턴이 남기는 위기 판정이 여기서 읽는 것보다 늦게 쓰이면, 새 화면에 도움 자원이 고정되지 않는다.
+		previous.waitForTurn(ctx, 0)
+		// 닫는 인사는 이미 사라진 화면과 주고받는 것이라 기다릴 까닭이 없다.
+		go previous.shutSocket(statusTakenOver, "another connection took over")
 	}
 
 	session, err := c.channel.opts.Engine.Start(ctx, engine.StartInput{
@@ -465,42 +613,76 @@ func (c *conversationConn) handleUserText(ctx context.Context, m WsUserText) boo
 		c.sendError(ctx, WsErrorCodeConversationEnded, &m.ClientMessageID)
 		return true
 	}
-
-	turnCtx, done := c.beginTurn(ctx)
-	turn, err := c.channel.opts.Engine.Handle(turnCtx, c.session, engine.Say{
-		ClientMessageID: m.ClientMessageID,
-		Text:            m.Text,
-	})
-	c.endTurn(done)
-	if err != nil {
-		c.finishAfterEngineError(ctx, err, &m.ClientMessageID)
-		return !c.ended && !isFatalEngineError(err)
+	// 돈이 드는 것은 글 하나마다 모델을 두세 번 부르는 이 길이다. 사용자별 한도는 여기서만 센다.
+	if allowed, _ := c.channel.userLimiter.take(c.user.ID.String()); !allowed {
+		c.sendError(ctx, WsErrorCodeRateLimited, &m.ClientMessageID)
+		return true
 	}
-	c.logger.LogAttrs(ctx, slog.LevelInfo, "conversation turn finished",
-		slog.Any("conversation", c.session), slog.Any("turn", turn))
+
+	c.beginTurn(ctx, m)
 	return true
 }
 
-// beginTurn은 이 턴을 멈출 수 있게 등록한다. 연결을 빼앗기거나 서버가 내려갈 때 이 컨텍스트가 취소된다.
-func (c *conversationConn) beginTurn(ctx context.Context) (context.Context, chan struct{}) {
+// beginTurn은 턴 하나를 따로 돌린다. 결과는 run의 고리가 turnResult로 받는다.
+// 연결을 빼앗기거나 끝내기가 들어오거나 서버가 내려갈 때 이 컨텍스트가 취소된다.
+func (c *conversationConn) beginTurn(ctx context.Context, m WsUserText) {
 	turnCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
+	result := make(chan turnOutcome, 1)
+
 	c.turnMu.Lock()
-	c.turnCancel = cancel
-	c.turnDone = done
+	c.turnCancel, c.turnDone = cancel, done
 	c.turnMu.Unlock()
-	return turnCtx, done
+	c.turnResult = result
+
+	go func() {
+		defer close(done)
+		turn, err := c.channel.opts.Engine.Handle(turnCtx, c.session, engine.Say{
+			ClientMessageID: m.ClientMessageID,
+			Text:            m.Text,
+		})
+		result <- turnOutcome{clientMessageID: m.ClientMessageID, turn: turn, err: err}
+	}()
 }
 
-func (c *conversationConn) endTurn(done chan struct{}) {
+// finishTurn은 끝난 턴을 마무리한다. 연결을 이어가면 true다.
+func (c *conversationConn) finishTurn(ctx context.Context, outcome turnOutcome) bool {
+	c.clearTurn()
+	if outcome.err != nil {
+		c.finishAfterEngineError(ctx, outcome.err, &outcome.clientMessageID)
+		return !c.ended && !isFatalEngineError(outcome.err)
+	}
+	// 턴이 끝났다는 줄은 엔진이 남긴다. 여기서 한 번 더 남기면 같은 줄이 둘이 되어 턴의 수를 두 배로 읽게 된다.
+	return true
+}
+
+// turnRunning은 지금 턴이 돌고 있는지다.
+func (c *conversationConn) turnRunning() bool {
+	c.turnMu.Lock()
+	defer c.turnMu.Unlock()
+	return c.turnDone != nil
+}
+
+// clearTurn은 끝난 턴의 자리를 비운다.
+func (c *conversationConn) clearTurn() {
 	c.turnMu.Lock()
 	cancel := c.turnCancel
 	c.turnCancel, c.turnDone = nil, nil
 	c.turnMu.Unlock()
-	close(done)
+	c.turnResult = nil
 	if cancel != nil {
 		cancel()
 	}
+}
+
+// stopTurn은 돌고 있는 턴을 바로 멈추고 끝날 때까지 기다린다. 도는 턴이 없으면 그냥 돌아온다.
+func (c *conversationConn) stopTurn(ctx context.Context) {
+	c.waitForTurn(ctx, 0)
+	select {
+	case <-c.turnResult:
+	default:
+	}
+	c.clearTurn()
 }
 
 // endConversation은 대화를 끝내고, 초안을 기다릴 것이 있으면 기다렸다가 알린다. 연결을 이어가면 true다.
@@ -517,7 +699,7 @@ func (c *conversationConn) endConversation(ctx context.Context, reason string) b
 	c.ended = true
 	// 여기서부터는 사용자의 글을 더 받지 않는다. 일기 소식만 기다린다.
 	c.awaitDiary(ctx)
-	c.close(websocket.StatusNormalClosure, "conversation ended")
+	c.close(ctx, websocket.StatusNormalClosure, "conversation ended")
 	return false
 }
 
@@ -672,7 +854,7 @@ func (c *conversationConn) finishAfterEngineError(ctx context.Context, err error
 	case errors.Is(err, engine.ErrGone):
 		c.logger.LogAttrs(ctx, slog.LevelWarn, "conversation user is gone")
 		c.sendError(ctx, WsErrorCodeInternalError, clientMessageID)
-		c.close(statusGone, "account is gone")
+		c.close(ctx, statusGone, "account is gone")
 
 	case errors.Is(err, engine.ErrConversationEnded):
 		c.ended = true
@@ -713,11 +895,16 @@ func failureName(err error) string {
 	}
 }
 
-// close는 연결을 닫는다. 몇 번을 불러도 한 번만 닫힌다.
+// close는 돌던 턴을 정리하고 연결을 닫는다. 몇 번을 불러도 한 번만 닫힌다.
 // 돌고 있던 턴에는 잠깐의 말미를 주고, 그래도 끝나지 않으면 컨텍스트를 취소한다.
-func (c *conversationConn) close(status websocket.StatusCode, reason string) {
+func (c *conversationConn) close(ctx context.Context, status websocket.StatusCode, reason string) {
+	c.waitForTurn(ctx, shutdownGrace)
+	c.shutSocket(status, reason)
+}
+
+// shutSocket은 닫는 인사를 주고받고 연결을 끝낸다. 돌던 턴은 보지 않는다.
+func (c *conversationConn) shutSocket(status websocket.StatusCode, reason string) {
 	c.closeOnce.Do(func() {
-		c.waitForTurn()
 		// 닫는 인사를 기다리다 걸리더라도 연결은 끝난다. CloseNow가 뒤에서 마무리한다.
 		ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
 		defer cancel()
@@ -734,20 +921,24 @@ func (c *conversationConn) close(status websocket.StatusCode, reason string) {
 	})
 }
 
-// waitForTurn은 돌고 있는 턴이 끝나기를 잠깐 기다리고, 그래도 끝나지 않으면 취소한다.
-func (c *conversationConn) waitForTurn() {
+// waitForTurn은 돌고 있는 턴이 끝나기를 grace만큼 기다리고, 그래도 끝나지 않으면 취소하고 기다린다.
+// grace가 0이면 바로 취소한다. ctx가 먼저 끝나면 말미도 거기서 끊는다.
+func (c *conversationConn) waitForTurn(ctx context.Context, grace time.Duration) {
 	c.turnMu.Lock()
 	cancel, done := c.turnCancel, c.turnDone
 	c.turnMu.Unlock()
 	if done == nil {
 		return
 	}
-	timer := time.NewTimer(shutdownGrace)
-	defer timer.Stop()
-	select {
-	case <-done:
-		return
-	case <-timer.C:
+	if grace > 0 {
+		timer := time.NewTimer(grace)
+		defer timer.Stop()
+		select {
+		case <-done:
+			return
+		case <-timer.C:
+		case <-ctx.Done():
+		}
 	}
 	if cancel != nil {
 		cancel()

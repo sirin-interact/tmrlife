@@ -190,6 +190,13 @@ type LLM struct {
 	AnalysisThinking          ThinkingLevel
 	// FallbackAfter는 대화 모델의 첫 글자를 기다리는 시간이다. 넘기면 예비 모델을 함께 부른다.
 	FallbackAfter time.Duration
+	// ReplyBudget은 대화 모델의 답을 기다리는 시간의 상한이다. 두 번의 시도를 합친 시간이다.
+	// 넘기면 미리 써 둔 말로 바꾼다. 늦게 오는 말보다 제때 오는 안전한 말이 낫다.
+	//
+	// 이 값이 없으면 한 턴이 부른 쪽의 컨텍스트만 따라 몇 분씩 이어질 수 있고, 그동안 사용자는 답도 못 받고
+	// 끝내기도 하지 못한다. FallbackAfter보다 길어야 한다. 그보다 짧으면 예비 모델을 부를 틈이 없어
+	// 이 값이 예비 모델을 조용히 꺼 버린다.
+	ReplyBudget time.Duration
 	// GateTimeout은 위기 판별 모델의 답을 기다리는 시간이다. 넘기면 판별이 실패한 것으로 보고 규칙의 판정만으로 대응한다.
 	// 사용자는 이 시간이 지나야 답을 받으므로 길게 잡지 않는다.
 	GateTimeout time.Duration
@@ -263,6 +270,7 @@ func (c Config) LogValue() slog.Value {
 		slog.String("llm_thinking_gate", string(c.LLM.GateThinking)),
 		slog.String("llm_thinking_analysis", string(c.LLM.AnalysisThinking)),
 		slog.Duration("llm_fallback_after", c.LLM.FallbackAfter),
+		slog.Duration("llm_reply_budget", c.LLM.ReplyBudget),
 		slog.Duration("gate_ai_timeout", c.LLM.GateTimeout),
 		slog.Duration("idle_check_after", c.Conversation.IdleCheckAfter),
 		slog.Duration("idle_end_after", c.Conversation.IdleEndAfter),
@@ -346,6 +354,7 @@ type raw struct {
 	LLMThinkingGate              string `env:"LLM_THINKING_GATE" envDefault:"minimal"`
 	LLMThinkingAnalysis          string `env:"LLM_THINKING_ANALYSIS" envDefault:"low"`
 	LLMFallbackAfter             string `env:"LLM_FALLBACK_AFTER" envDefault:"3s"`
+	LLMReplyBudget               string `env:"LLM_REPLY_BUDGET" envDefault:"12s"`
 
 	// 기본값을 여기에 적지 않는다. 적지 않았다는 사실이 있어야 환경과 키를 보고 고를 수 있다.
 	AIProvider    string `env:"AI_PROVIDER"`
@@ -495,6 +504,21 @@ func LoadFrom(environ map[string]string) (Config, error) {
 		add("LLM_FALLBACK_AFTER", "must be greater than zero")
 	default:
 		cfg.LLM.FallbackAfter = fallbackAfter
+	}
+
+	replyBudget, err := time.ParseDuration(strings.TrimSpace(r.LLMReplyBudget))
+	switch {
+	case err != nil:
+		add("LLM_REPLY_BUDGET", "must be a duration such as 12s")
+	case replyBudget <= 0:
+		add("LLM_REPLY_BUDGET", "must be greater than zero")
+	case replyBudget > maxReplyBudget:
+		add("LLM_REPLY_BUDGET", "must not be longer than "+maxReplyBudget.String())
+	case cfg.LLM.FallbackAfter > 0 && replyBudget <= cfg.LLM.FallbackAfter:
+		// 여기서 막지 않으면 예비 모델을 부르기도 전에 시간이 끝난다. 설정 하나가 다른 설정을 조용히 끄는 꼴이다.
+		add("LLM_REPLY_BUDGET", "must be longer than LLM_FALLBACK_AFTER")
+	default:
+		cfg.LLM.ReplyBudget = replyBudget
 	}
 
 	provider, providerProblems := loadAIProvider(r, cfg.Env.IsProd(), cfg.Providers.GeminiAPIKey.IsSet())
@@ -829,6 +853,8 @@ func loadAIProvider(r raw, prod, geminiKeySet bool) (AIProvider, []Problem) {
 const (
 	// 위기 판별을 이보다 오래 기다리면 사용자는 답이 멈춘 것으로 느낀다. 그보다 긴 값은 오타로 본다.
 	maxGateAITimeout = 30 * time.Second
+	// 대화 모델을 이보다 오래 기다리면 사용자는 답도 못 받고 끝내기도 하지 못한 채 앉아 있게 된다.
+	maxReplyBudget = 60 * time.Second
 	// 말이 없는 대화와 끊긴 연결을 하루 넘게 열어 두는 값은 오타로 본다. 새벽의 경계를 넘긴 대화는 어차피 이어가지 않는다.
 	maxConversationWait = 24 * time.Hour
 	// start, user_text, end 가운데 가장 큰 것은 글 하나다. 그 한도보다 작으면 글을 끝까지 받을 수 없다.

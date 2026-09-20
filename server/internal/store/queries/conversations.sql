@@ -66,6 +66,7 @@ RETURNING *;
 -- 확인 상태는 앞으로만 간다(none, reflected, asked 순). 같은 값을 다시 적는 것은 받아 준다.
 -- 뒤로 돌리려는 요청과 끝난 대화에 대한 요청은 찾지 못함이 된다. 직접 묻기는 한 대화에서 한 번뿐이어야 하므로,
 -- 같은 대화를 두 연결이 함께 다루더라도 "직접 물었다"가 "되물었다"로 덮이지 않게 한다.
+-- 'asked'로 옮기는 일은 ClaimDirectAsk만 한다. 여기서는 그 자리를 넘겨받지 않는다.
 UPDATE conversations
 SET check_state = sqlc.arg(check_state)::text
 WHERE id = sqlc.arg(id)
@@ -73,6 +74,32 @@ WHERE id = sqlc.arg(id)
   AND status = 'active'
   AND array_position(ARRAY['none', 'reflected', 'asked'], check_state)
       <= array_position(ARRAY['none', 'reflected', 'asked'], sqlc.arg(check_state)::text)
+RETURNING *;
+
+-- name: ClaimDirectAsk :one
+-- 직접 묻기의 자리를 한 번만 내준다. 되물은 뒤('reflected')에서만 '물었다'로 옮겨지고, 옮긴 쪽만 행을 돌려받는다.
+--
+-- 단순히 앞으로만 가는 규칙으로는 모자란다. 두 연결이 같은 대화를 함께 다루면 둘 다 'reflected'를 읽고
+-- 둘 다 직접 묻기로 가서, 사람이 같은 질문을 연달아 두 번 받는다. 여기서 진 쪽은 코어의 규칙대로
+-- "이미 물었다"로 보고 대응 단계로 올라간다.
+UPDATE conversations
+SET check_state = 'asked'
+WHERE id = sqlc.arg(id)
+  AND user_id = sqlc.arg(user_id)
+  AND status = 'active'
+  AND check_state = 'reflected'
+RETURNING *;
+
+-- name: AdvanceConversationCrisisStage :one
+-- 위기 대응의 고정 문구가 실제로 나간 단계를 적는다. 뒤로 돌리지 않고, 같은 값을 다시 적는 것은 받아 준다.
+-- 말이 나간 트랜잭션 안에서만 부른다. 말이 나가기 전에 적으면, 판정만 남기고 끊긴 턴을 다시 보냈을 때
+-- 고정 문구를 이미 말한 것으로 보고 건너뛴다.
+UPDATE conversations
+SET crisis_spoken_stage = sqlc.arg(crisis_spoken_stage)
+WHERE id = sqlc.arg(id)
+  AND user_id = sqlc.arg(user_id)
+  AND status = 'active'
+  AND crisis_spoken_stage <= sqlc.arg(crisis_spoken_stage)
 RETURNING *;
 
 -- name: SetConversationProcessingStatus :execrows

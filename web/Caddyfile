@@ -40,7 +40,8 @@
 
 		header {
 			# 스크립트와 스타일은 같은 출처의 파일만 허용한다. 인라인 스크립트와 eval은 막힌다.
-			# connect-src 'self'는 같은 출처의 API 호출과 WebSocket(wss) 연결을 함께 허용한다.
+			# connect-src 'self'는 같은 출처의 API 호출과 WebSocket(wss, 페이지가 http면 ws) 연결을 함께 허용한다.
+			# 대화 채널을 다른 호스트로 옮긴다면 그 주소를 connect-src에 적어야 한다. 'self'로는 닿지 못한다.
 			# media-src의 blob:은 받아 온 음성을 재생할 때, img-src의 data:는 CSS에 들어 있는 작은 그림에 필요하다.
 			# <style> 태그를 직접 끼워 넣는 UI 라이브러리를 들이면 style-src에 그 내용의 해시를 더해야 한다.
 			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"

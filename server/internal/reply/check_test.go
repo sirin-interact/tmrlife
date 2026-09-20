@@ -38,8 +38,8 @@ func TestCheck_Passes(t *testing.T) {
 		{"뜻이 풀린 뒤의 답", "아, 그런 거였어요. 요즘 진짜 쉴 틈이 없었죠."},
 		{"반어를 속뜻으로 받은 답", "진짜 엎친 데 덮친 격이었네요."},
 		{"끊어 말한 감탄사는 문장으로 세지 않는다", "와! 축하해요! 어떤 회사예요?"},
-		{"말을 고르는 줄임표도 문장으로 세지 않는다", "음... 그랬군요. 많이 놀랐겠어요."},
-		{"쉼표로 이은 말은 한 문장이다", "그랬군요, 많이 놀랐겠어요. 지금은 좀 괜찮아요?"},
+		{"말을 고르는 줄임표도 문장으로 세지 않는다", "음... 그랬네요. 많이 놀랐겠어요."},
+		{"쉼표로 이은 말은 한 문장이다", "그랬네요, 많이 놀랐겠어요. 지금은 좀 괜찮아요?"},
 		{"소수점은 문장의 끝이 아니다", "학점이 3.5점이나 올랐네요. 기분이 어땠어요?"},
 		{"요로 끝나는 이름씨에서는 문장을 끊지 않는다", "그럴 필요 없어요. 지금도 충분히 애쓰고 있어요."},
 		{"물음표와 느낌표를 겹쳐 써도 질문은 하나다", "정말요?! 축하해요."},
@@ -60,7 +60,7 @@ func TestCheck_Length(t *testing.T) {
 	}{
 		{"빈 답", "  \n ", []string{"empty"}},
 		{"세 문장", "아이고, 지갑을 잃어버리셨어요. 비까지 맞았으니 정말 속상했겠어요. 지금은 집에 잘 들어왔어요?", []string{"too_many_sentences:3"}},
-		{"문장 부호 없이 이어 쓴 세 문장", "그랬군요 많이 힘드셨겠어요 오늘은 푹 쉬어요", []string{"too_many_sentences:3"}},
+		{"문장 부호 없이 이어 쓴 세 문장", "그랬네요 많이 힘드셨겠어요 오늘은 푹 쉬어요", []string{"too_many_sentences:3"}},
 		{"두 문장이지만 너무 긴 답", strings.Repeat("오늘 하루 동안 있었던 여러 가지 일들 때문에 많이 지치고 힘드셨을 것 같은데 그래도 이렇게 이야기해 주셔서 ", 2) + "고마워요.", []string{"too_long"}},
 	}
 	for _, tc := range cases {
@@ -70,7 +70,7 @@ func TestCheck_Length(t *testing.T) {
 	}
 
 	t.Run("한도는 조정할 수 있고 빈 값은 기본값으로 채운다", func(t *testing.T) {
-		text := "그랬군요. 많이 놀랐겠어요."
+		text := "그랬네요. 많이 놀랐겠어요."
 		assert.Equal(t, []string{"too_many_sentences:2"}, names(reply.Check(reply.Draft{Mode: reply.ModeNormal, Text: text}, reply.Limits{MaxSentences: 1})))
 		assert.Empty(t, reply.Check(reply.Draft{Mode: reply.ModeNormal, Text: text}, reply.Limits{}))
 	})
@@ -205,6 +205,37 @@ func TestCheck_Tone(t *testing.T) {
 	}
 }
 
+// 지난 일을 이야기한 턴에서 모델이 상담사 말투로 미끄러지는 자리다.
+// 지시문이 "~하셨군요", "~었군요"를 쓰지 말라고 했는데 검사에는 그 규칙이 없었다.
+func TestCheck_CounsellingEnding(t *testing.T) {
+	// 사용자가 먼저 꺼낸 낱말은 다른 검사에 걸리지 않게 함께 넘긴다.
+	const said = "오늘 병원 다녀왔어"
+	cases := []struct {
+		name string
+		text string
+		want []string
+	}{
+		{"다녀왔군요", "병원 다녀왔군요. 어디 많이 안 좋으셨어요?", []string{"counselling_ending:past_gunyo"}},
+		{"하셨군요", "병원 다녀오셨군요. 어디가 안 좋으셨어요?", []string{"counselling_ending:past_gunyo"}},
+		{"계셨군요", "종일 우울해서 집에만 계셨군요.", []string{"counselling_ending:past_gunyo"}},
+		{"싫으셨군요", "말하기 싫으셨군요.", []string{"counselling_ending:past_gunyo"}},
+		{"그랬군요", "그랬군요. 많이 놀랐겠어요.", []string{"counselling_ending:past_gunyo"}},
+		{"힘들었군요", "많이 힘들었군요.", []string{"counselling_ending:past_gunyo"}},
+		{"네요로 받으면 걸리지 않는다", "병원 다녀오셨네요. 어디가 안 좋으셨어요?", nil},
+		{"현재형 군요는 걸리지 않는다", "그렇군요.", nil},
+		{"있군요는 지금을 말한 것이다", "그런 날도 있군요.", nil},
+		{"없군요는 지금을 말한 것이다", "요즘은 쉴 틈이 없군요.", nil},
+		{"재밌군요는 지금을 말한 것이다", "그 얘기 재밌군요.", nil},
+		{"받침 없는 군요도 걸리지 않는다", "많이 드는군요.", nil},
+		{"군으로 끝나면 걸리지 않는다", "친구분이 공군이요?", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.ElementsMatch(t, tc.want, check(reply.Draft{Text: tc.text, UserTexts: []string{said}}))
+		})
+	}
+}
+
 func TestCheck_Diagnosis(t *testing.T) {
 	cases := []struct {
 		name string
@@ -250,11 +281,11 @@ func TestCheck_Characters(t *testing.T) {
 		{"하트 기호", "응원해요 ♥", "", []string{"symbol:emoji"}},
 		{"낱자모", "아이고 ㅠㅠ 속상했겠어요.", "", []string{"symbol:jamo"}},
 		{"웃음 자모", "ㅋㅋ 재밌었겠네요.", "", []string{"symbol:jamo"}},
-		{"물결표", "그랬군요~", "", []string{"symbol:punctuation"}},
-		{"괄호", "그랬군요. (웃음)", "", []string{"symbol:punctuation"}},
+		{"물결표", "그랬네요~", "", []string{"symbol:punctuation"}},
+		{"괄호", "그랬네요. (웃음)", "", []string{"symbol:punctuation"}},
 		{"목록 기호", "* 오늘 있었던 일", "", []string{"symbol:punctuation"}},
 		{"말 앞에 붙인 표시", "AI: 무슨 일 있었어요?", "", []string{"symbol:punctuation"}},
-		{"줄바꿈", "그랬군요.\n많이 놀랐겠어요.", "", []string{"symbol:line_break"}},
+		{"줄바꿈", "그랬네요.\n많이 놀랐겠어요.", "", []string{"symbol:line_break"}},
 		{"한자", "저는 하루 종일 사용跟你 이야기 나눌 준비를 했어요.", "", []string{"foreign_script:han"}},
 		{"가나", "すごい 하루였네요.", "", []string{"foreign_script:hiragana"}},
 		{"가타카나", "정말 ラッキー한 날이네요.", "", []string{"foreign_script:katakana"}},

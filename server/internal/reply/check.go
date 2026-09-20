@@ -41,6 +41,8 @@ const (
 	RuleMissingQuestion Rule = "missing_question"
 	// RuleNotMirrored는 되물어야 하는 턴(ModeCheck)에 사용자의 표현을 받지 않은 경우다.
 	RuleNotMirrored Rule = "not_mirrored"
+	// RuleCounsellingEnding은 지시문이 쓰지 말라고 한 상담 문구의 말끝을 쓴 경우다.
+	RuleCounsellingEnding Rule = "counselling_ending"
 )
 
 // Violation은 출력 검사에 걸린 곳 하나다.
@@ -185,6 +187,9 @@ func Check(d Draft, limits Limits) []Violation {
 		if e.found(text, d.UserTexts) {
 			add(RuleDiagnosis, e.id)
 		}
+	}
+	if pastGunyo(text) {
+		add(RuleCounsellingEnding, "past_gunyo")
 	}
 	if verdictPattern.MatchString(squeezed) {
 		add(RuleDiagnosis, "verdict")
@@ -350,6 +355,25 @@ func final(r rune) int {
 		return -1
 	}
 	return int(r-hangulBase) % finalsCount
+}
+
+// 받침이 ㅆ이지만 지난 일을 가리키지 않는 어간이다. "있군요", "없군요", "재밌군요"는 지금을 말한 것이라 상담 말투가 아니다.
+var presentStemsWithSsangS = map[rune]bool{'있': true, '없': true, '밌': true}
+
+// pastGunyo는 지난 일을 가리키는 ㅆ 받침 뒤에 "군요"가 붙은 말끝을 찾는다("다녀왔군요", "계셨군요", "힘들었군요").
+// 사용자가 지난 일을 이야기한 첫 턴에서 모델이 미끄러지는 자리라, 지시문으로만 막기에는 자주 나온다.
+// 받침이 없거나 다른 받침인 "군요"("그렇군요", "많군요")는 지금을 말한 것이라 잡지 않는다.
+func pastGunyo(text string) bool {
+	runes := []rune(text)
+	for i := 2; i < len(runes); i++ {
+		if runes[i-1] != '군' || runes[i] != '요' {
+			continue
+		}
+		if stem := runes[i-2]; final(stem) == finalSsangS && !presentStemsWithSsangS[stem] {
+			return true
+		}
+	}
+	return false
 }
 
 var indirectQuestion = regexp.MustCompile(`궁금|알고 ?싶`)

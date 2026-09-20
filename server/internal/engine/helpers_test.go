@@ -60,7 +60,7 @@ const (
 	replyOrdinary = "오 재밌게 놀고 왔네요. 어디 다녀왔어요?"
 	replyShort    = "그런 날 있죠. 오늘은 푹 쉬어요."
 	replyMirror   = "사라졌으면 좋겠다는 말이 마음에 남아요. 오늘 무슨 일 있었어요?"
-	replyListen   = "그랬군요. 지금 여기 같이 있을게요."
+	replyListen   = "그랬네요. 지금 여기 같이 있을게요."
 )
 
 // syncBuffer는 여러 고루틴이 함께 쓰는 로그를 모은다.
@@ -138,6 +138,19 @@ func (r *recorder) count(match func(e engine.Event) bool) int {
 		}
 	}
 	return n
+}
+
+// lastResources는 마지막으로 나간 도움 자원이다. 자원은 고정 문구보다 먼저 나간다.
+func (r *recorder) lastResources(t *testing.T) engine.Resources {
+	t.Helper()
+	events := r.all()
+	for i := len(events) - 1; i >= 0; i-- {
+		if items, ok := events[i].(engine.Resources); ok {
+			return items
+		}
+	}
+	require.Fail(t, "자원이 한 번도 나가지 않았다")
+	return engine.Resources{}
 }
 
 func (r *recorder) resources() int {

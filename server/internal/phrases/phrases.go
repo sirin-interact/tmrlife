@@ -313,6 +313,28 @@ func (c *Catalogue) Get(id ID) (Phrase, bool) {
 	return Phrase{ID: e.ID, Display: e.Display, Speech: e.Speech}, true
 }
 
+// ByDisplay는 화면에 나간 글로 미리 써 둔 문구를 되찾는다. 없으면 두 번째 값이 거짓이다.
+//
+// 대화 기록에는 어느 문구였는지가 남지 않고 글만 남는다. 끊겼던 말을 다시 내보낼 때 글만 들고 있으면
+// 음성으로 읽을 글을 만들 수 없어 "109"가 숫자 그대로 읽힌다. 고정 문구의 글은 서로 겹치지 않으므로
+// 글로 되찾을 수 있다. 사용자의 표현을 넣어 만드는 문형은 여기서 찾지 않는다.
+func (c *Catalogue) ByDisplay(display string) (Phrase, bool) {
+	if display == "" {
+		return Phrase{}, false
+	}
+	for _, e := range c.phrases {
+		if e.Display == display {
+			return Phrase{ID: e.ID, Display: e.Display, Speech: e.Speech}, true
+		}
+		for _, alt := range e.Alternates {
+			if alt.Display == display {
+				return Phrase{ID: e.ID, Display: alt.Display, Speech: alt.Speech}, true
+			}
+		}
+	}
+	return Phrase{}, false
+}
+
 func (c *Catalogue) must(id ID) Phrase {
 	// Parse가 모든 ID가 있는지 확인했으므로 여기서 빈 값이 나가는 일은 없다.
 	p, _ := c.Get(id)

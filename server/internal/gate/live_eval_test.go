@@ -1,7 +1,10 @@
 package gate_test
 
-// 이 파일의 평가는 실제 판별 모델을 부른다. GEMINI_API_KEY가 있을 때만 돌고, 없으면 건너뛴다.
-// 키가 있어도 돌리고 싶지 않으면 GEMINI_LIVE_TESTS=0을 준다. 문장마다 여러 번 돌려 보려면 GATE_LIVE_EVAL_RUNS에 횟수를 준다.
+// 이 파일의 평가는 실제 판별 모델을 부른다. GATE_LIVE_EVAL=1과 GEMINI_API_KEY가 함께 있을 때만 돈다(make eval).
+// 모델의 답에 대고 단정하는 평가라, 고친 것과 상관없이 모델이 달라졌다는 이유로 빨개질 수 있다.
+// 그런 시험이 기본 검사에 섞여 있으면 빨간 안전 시험을 넘겨 짚는 습관이 든다. 그래서 일부러 켜야 돈다.
+// 키가 있어도 네트워크를 아예 쓰지 않으려면 GEMINI_LIVE_TESTS=0을 준다(실제 모델을 부르는 다른 파일도 함께 꺼진다).
+// 문장마다 여러 번 돌려 보려면 GATE_LIVE_EVAL_RUNS에 횟수를 준다.
 //
 // 보는 것은 지시문이 제 몫을 하는지다. 문장마다 받아들일 수 있는 단계의 범위가 있고, 그 가운데 두 가지는 어기면 시험이 실패한다.
 //   - 대응 단계 이상이어야 하는 문장을 낮춰 잡는 것. 놓치면 사람이 위험해진다.
@@ -59,6 +62,9 @@ type liveOutcome struct {
 }
 
 func TestLiveEvaluation(t *testing.T) {
+	if os.Getenv("GATE_LIVE_EVAL") != "1" {
+		t.Skip("GATE_LIVE_EVAL=1일 때만 도는 평가다 (make eval)")
+	}
 	key := strings.TrimSpace(os.Getenv("GEMINI_API_KEY"))
 	if key == "" {
 		t.Skip("GEMINI_API_KEY가 없어 실제 판별 모델을 부르는 평가를 건너뛴다")

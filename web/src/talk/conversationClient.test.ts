@@ -17,7 +17,7 @@ import {
   MAX_SEND_ATTEMPTS,
   TIMING,
 } from '@/talk/conversationClient';
-import { CONVERSATION_PATH, conversationUrl } from '@/talk/messages';
+import { CLOSE_CODE, CONVERSATION_PATH, conversationUrl } from '@/talk/messages';
 
 const URL = 'ws://naeil.test/ws/v1/conversation';
 
@@ -417,6 +417,32 @@ describe('끊긴 연결', () => {
     sockets.latest().drop();
 
     expect(handshakeFailed).not.toHaveBeenCalled();
+  });
+
+  it('다른 화면이 대화를 이어받으면 다시 잇지 않는다. 사용자가 고르면 여기서 이어간다', () => {
+    const { client, sockets } = started();
+
+    sockets.latest().drop(CLOSE_CODE.takenOver);
+
+    expect(client.getState().phase).toBe('taken_over');
+    expect(client.getState().awaitingReply).toBe(false);
+    // 여기서 저절로 다시 이으면 두 화면이 서로 대화를 빼앗는다.
+    vi.advanceTimersByTime(TIMING.reconnectMaxMs * 5);
+    expect(sockets.all).toHaveLength(1);
+
+    client.wake();
+    expect(sockets.all).toHaveLength(2);
+  });
+
+  it('계정이 사라져 닫힌 연결은 다시 잇지 않고 로그인 상태를 확인하게 한다', () => {
+    const { client, sockets, handshakeFailed } = started();
+
+    sockets.latest().drop(CLOSE_CODE.gone);
+
+    expect(handshakeFailed).toHaveBeenCalledTimes(1);
+    expect(client.getState().phase).toBe('failed');
+    vi.advanceTimersByTime(TIMING.reconnectMaxMs * 5);
+    expect(sockets.all).toHaveLength(1);
   });
 
   it('쉬는 사이에 앞의 대화가 끝나 새 대화로 이어지면 알리고, 고정해 둔 자원은 비운다', () => {

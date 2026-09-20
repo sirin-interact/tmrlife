@@ -12,6 +12,20 @@ export const diaryQueryOptions = (date: RecordDate) =>
     queryFn: ({ signal }) => fetchDiary(date, signal),
   });
 
+/**
+ * 대화를 마친 뒤 그날의 초안이 도착했는지 살피는 조회. 읽는 것은 그날의 일기와 같지만 키를 따로 둔다.
+ *
+ * 같은 키를 쓰면 "아직 일기가 없다"는 답이 그날의 일기 조회에 남는다. 조회 결과는 잠시 그대로 쓰이므로,
+ * 곧이어 초안이 도착해 일기 화면으로 옮겨 가도 그 화면은 남아 있는 답을 보고 "이 날의 일기가 아직 없어요"를 보여 준다.
+ */
+export const diaryArrivalQueryOptions = (date: RecordDate) =>
+  queryOptions({
+    queryKey: [DIARIES, 'arrival', date] as const,
+    queryFn: ({ signal }) => fetchDiary(date, signal),
+    // 살피는 동안에만 쓰는 값이다. 일기 글이 메모리에 남지 않게 바로 버린다.
+    gcTime: 0,
+  });
+
 export const diaryMonthQueryOptions = (month: string) =>
   queryOptions({
     queryKey: [DIARIES, 'month', month] as const,
