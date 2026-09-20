@@ -1,0 +1,91 @@
+# 빌드된 웹앱(정적 파일)을 내보내는 서버 설정이다.
+# API와 WebSocket은 이 서버가 받지 않는다. 같은 출처의 /api, /ws는 앞단(인그레스)이 API 서버로 보낸다.
+{
+	# 설정은 이미지에 들어 있고 실행 중에 바꾸지 않는다. 관리용 API와 설정 자동 저장을 끈다.
+	# 자동 저장을 꺼야 루트 파일 시스템을 읽기 전용으로 띄울 수 있다.
+	admin off
+	persist_config off
+
+	# TLS는 앞단이 끝낸다. 이 서버는 평문 HTTP만 받는다.
+	auto_https off
+
+	# 종료 신호를 받으면 새 연결을 받지 않고, 처리 중인 요청을 이 시간만큼 기다린 뒤 내려간다.
+	grace_period 10s
+
+	servers {
+		# HTTP/2와 HTTP/3은 TLS가 있어야 켜진다. 앞단과는 HTTP/1.1로만 말하므로 나머지는 꺼 둔다.
+		protocols h1
+	}
+}
+
+:8080 {
+	root * /srv
+
+	# 글꼴(woff2)과 이미지는 이미 압축된 형식이라 건너뛰고, 텍스트 응답만 압축한다.
+	encode zstd gzip
+
+	# 아래는 적힌 순서 그대로 실행된다.
+	route {
+		# 로컬 확인용 설정이 끼어드는 자리다. 운영 이미지에는 이 디렉터리가 없고, 없으면 그냥 넘어간다.
+		import /etc/caddy/conf.d/*.caddy
+
+		# 파드의 생존 확인용이다. 밖에서 보이는 /healthz는 앞단이 API 서버로 보내므로 이 응답은 클러스터 안에서만 쓰인다.
+		@health path /healthz
+		respond @health "ok" 200
+
+		# 라우팅이 잘못되어 API 요청이 여기로 오더라도 앱 껍데기(HTML)로 답하지 않는다.
+		# 200 HTML을 돌려주면 클라이언트가 그것을 정상 응답으로 읽으려다 엉뚱한 곳에서 실패한다.
+		@backend path /api /api/* /ws /ws/*
+		respond @backend 404
+
+		header {
+			# 스크립트와 스타일은 같은 출처의 파일만 허용한다. 인라인 스크립트와 eval은 막힌다.
+			# connect-src 'self'는 같은 출처의 API 호출과 WebSocket(wss) 연결을 함께 허용한다.
+			# media-src의 blob:은 받아 온 음성을 재생할 때, img-src의 data:는 CSS에 들어 있는 작은 그림에 필요하다.
+			# <style> 태그를 직접 끼워 넣는 UI 라이브러리를 들이면 style-src에 그 내용의 해시를 더해야 한다.
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
+			# 마이크는 이 출처만 쓸 수 있다. 쓰지 않는 기능은 모두 끈다.
+			Permissions-Policy "microphone=(self), camera=(), geolocation=(), payment=(), usb=(), display-capture=(), browsing-topics=()"
+
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+			Referrer-Policy "no-referrer"
+			Cross-Origin-Opener-Policy "same-origin"
+			Cross-Origin-Resource-Policy "same-origin"
+			-Server
+		}
+
+		# 화면 경로(/login 같은)는 파일이 없으므로 앱 껍데기로 답한다.
+		# 마지막 조각에 점이 있는 경로는 파일 요청으로 보고 껍데기로 바꾸지 않는다.
+		# 없는 파일은 404여야 한다. 사라진 옛 JS 조각을 요청했는데 HTML이 200으로 오면 오류의 원인을 알 수 없게 된다.
+		@page {
+			not path_regexp \.[^/]*$
+			file {
+				try_files {path} /index.html
+			}
+		}
+		rewrite @page {file_match.relative}
+
+		# 기본은 "매번 서버에 확인"이다. 앱 껍데기(index.html), 서비스 워커(sw.js), 매니페스트가 여기에 해당한다.
+		# 이 셋이 오래 캐시되면 새 버전을 배포해도 사용자가 옛 화면에 갇힌다.
+		header Cache-Control "no-cache"
+
+		# 파일 이름에 내용 해시가 들어 있어 내용이 바뀌면 이름도 바뀐다. 그래서 영구 캐시해도 안전하다.
+		# 성공한 응답에만 붙인다. 404가 1년 동안 캐시되면 안 된다.
+		@hashed path /assets/* /workbox-*.js
+		header @hashed {
+			Cache-Control "public, max-age=31536000, immutable"
+			match status 200 206 304
+		}
+
+		# 아이콘은 이름이 고정이라 하루만 캐시한다.
+		@icons path /icons/* /favicon.svg
+		header @icons {
+			Cache-Control "public, max-age=86400"
+			match status 200 304
+		}
+
+		file_server
+	}
+}

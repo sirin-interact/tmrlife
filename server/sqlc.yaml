@@ -1,0 +1,58 @@
+# sqlc 설정이다. server/ 디렉터리에서 `sqlc generate`로 돌린다 (저장소 루트에서는 `make generate`).
+# 스키마의 원본은 goose 마이그레이션이다. 스키마를 따로 적어 두지 않으므로 둘이 어긋날 일이 없다.
+version: "2"
+sql:
+  - engine: postgresql
+    schema: migrations
+    # 쿼리는 now() 같은 DB의 시계를 쓰지 않고 시각을 인자로 받는다. 시계를 주입받는 코드와 DB의 시계가 따로 놀면
+    # 가짜 시계로 돌리는 시험의 결과가 달라진다. internal/store의 시험이 이 규칙을 확인한다.
+    queries: internal/store/queries
+    gen:
+      go:
+        package: db
+        out: internal/store/db
+        sql_package: pgx/v5
+        # NULL일 수 있는 값은 sql.Null* 대신 포인터로 받는다.
+        emit_pointers_for_null_types: true
+        # 결과가 없을 때 nil이 아니라 빈 슬라이스를 돌려준다. JSON으로 나갈 때 null이 아니라 []가 된다.
+        emit_empty_slices: true
+        rename:
+          ip: IP
+          wrapped_dek: WrappedDEK
+          kek_version: KEKVersion
+          ai_stage: AIStage
+          ai_failed: AIFailed
+          ai_latency_ms: AILatencyMs
+          stt_min_confidence: STTMinConfidence
+        overrides:
+          - db_type: uuid
+            go_type: github.com/google/uuid.UUID
+          - db_type: uuid
+            nullable: true
+            go_type:
+              import: github.com/google/uuid
+              type: UUID
+              pointer: true
+          - db_type: citext
+            go_type: string
+          - db_type: citext
+            nullable: true
+            go_type:
+              type: string
+              pointer: true
+          - db_type: timestamptz
+            go_type: time.Time
+          - db_type: timestamptz
+            nullable: true
+            go_type:
+              import: time
+              type: Time
+              pointer: true
+          - db_type: pg_catalog.timestamptz
+            go_type: time.Time
+          - db_type: pg_catalog.timestamptz
+            nullable: true
+            go_type:
+              import: time
+              type: Time
+              pointer: true

@@ -1,0 +1,98 @@
+@import 'tailwindcss';
+@import './styles/tokens.css';
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-link: var(--link);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-dawn-from: var(--dawn-from);
+  --color-dawn-to: var(--dawn-to);
+
+  --font-sans: var(--font-family-sans);
+
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 10px);
+
+  --spacing-touch: var(--touch-target);
+  --spacing-gutter: var(--page-gutter);
+  --container-content: var(--content-width);
+
+  /* 금방 끝나는 기다림에는 안내가 번쩍이지 않도록 조금 늦게 나타나게 한다. */
+  --animate-appear-late: appear-late 0.2s ease-out 0.4s both;
+
+  @keyframes appear-late {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100dvh;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-family-sans);
+    line-height: 1.65;
+    letter-spacing: -0.005em;
+    /* 한글은 어절 단위로 줄을 바꿔야 읽기 편하다. 긴 영문이나 주소는 넘치지 않게 끊는다. */
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* 키보드로 이동할 때 초점이 어디 있는지 항상 보이게 한다. 컴포넌트에서 outline을 지우지 않는다. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+  }
+}
+
+/* 움직임을 줄이도록 설정한 사용자에게는 전환과 애니메이션을 사실상 끈다. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

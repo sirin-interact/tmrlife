@@ -1,0 +1,35 @@
+# 로컬 개발용 구성이다. 운영 배포에는 쓰지 않는다.
+# 계정과 비밀번호가 모두 공개된 값이므로 포트를 로컬 주소에만 연다.
+name: naeil
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    # 제약 위반의 상세(DETAIL)를 로그에 적지 않게 한다. 기본값으로는 이미 가입된 이메일로 다시 가입할 때
+    # "Key (email)=(...) already exists"가 적혀서 이메일이 DB 로그에 남는다.
+    # 서버가 받는 오류 코드와 제약 이름은 그대로라서 앱의 동작은 달라지지 않는다. 쿠버네티스 구성의 DB도 같은 값으로 띄운다.
+    command: ["postgres", "-c", "log_error_verbosity=terse"]
+    environment:
+      POSTGRES_DB: naeil
+      POSTGRES_USER: naeil
+      POSTGRES_PASSWORD: naeil
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      # postgres 18 이미지부터 데이터 디렉터리가 버전별 하위 경로로 바뀌어
+      # /var/lib/postgresql/data가 아니라 상위 경로에 볼륨을 붙인다.
+      - naeil-db:/var/lib/postgresql
+    healthcheck:
+      # 초기화 중에 잠깐 뜨는 임시 서버는 유닉스 소켓만 연다.
+      # TCP로 확인해야 초기화가 끝난 뒤에만 healthy가 된다.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U naeil -d naeil"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  naeil-db:

@@ -1,0 +1,30 @@
+# 노드를 비울 때 한 번에 하나씩만 내리게 한다.
+# minAvailable이 아니라 maxUnavailable로 적는다. 복제본이 하나인 환경에서 minAvailable: 1은 노드 비우기를 영영 막는다.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: naeil-server
+  labels:
+    app.kubernetes.io/name: naeil-server
+    app.kubernetes.io/component: server
+spec:
+  maxUnavailable: 1
+  # 이미 고장 난 파드는 예산과 상관없이 내보낼 수 있게 한다. 그러지 않으면 고장 난 파드가 노드 비우기를 막는다.
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: naeil-server
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: naeil-web
+  labels:
+    app.kubernetes.io/name: naeil-web
+    app.kubernetes.io/component: web
+spec:
+  maxUnavailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: naeil-web

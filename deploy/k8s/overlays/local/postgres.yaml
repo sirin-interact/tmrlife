@@ -1,0 +1,126 @@
+# 로컬 확인용 PostgreSQL. 복제도 백업도 없다. 운영에 쓰지 않는다.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: naeil-postgres
+  labels:
+    app.kubernetes.io/name: naeil-postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: naeil
+spec:
+  serviceName: naeil-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: naeil-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: naeil-postgres
+        # 아래 두 레이블을 보고 네트워크 정책이 이 파드를 DB로 알아본다.
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: naeil
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        # 공식 이미지의 postgres 계정이다. 처음부터 이 계정으로 띄우면 이미지가 root 권한 없이 초기화한다.
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: postgres:18
+          imagePullPolicy: IfNotPresent
+          # 오류 로그에서 DETAIL 줄을 뺀다. 이미 가입된 이메일로 다시 가입하면 PostgreSQL이
+          # "Key (email)=(...) already exists"를 DETAIL에 적어서 사용자의 이메일이 DB 로그에 남는다.
+          # 서버가 받는 오류 코드와 제약 이름은 그대로라서 앱의 동작은 달라지지 않는다.
+          args: ["-c", "log_error_verbosity=terse"]
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: naeil-db-app
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: naeil-db-app
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: naeil-db-app
+                  key: dbname
+            - name: TZ
+              value: UTC
+            - name: PGTZ
+              value: UTC
+          readinessProbe:
+            # 초기화 중에 잠깐 뜨는 임시 서버는 유닉스 소켓만 연다.
+            # TCP로 확인해야 초기화가 끝난 뒤에만 준비된 것으로 본다.
+            exec:
+              command: ["sh", "-c", "pg_isready -h 127.0.0.1 -p 5432 -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            # postgres 18 이미지부터 데이터 디렉터리가 버전별 하위 경로로 바뀌어
+            # /var/lib/postgresql/data가 아니라 상위 경로에 볼륨을 붙인다.
+            - name: data
+              mountPath: /var/lib/postgresql
+            # 루트 파일 시스템이 읽기 전용이라 소켓과 임시 파일을 둘 자리를 따로 연다.
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: naeil-postgres
+  labels:
+    app.kubernetes.io/name: naeil-postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: naeil
+spec:
+  # 복제본이 하나라 부하를 나눌 일이 없다. StatefulSet이 요구하는 헤드리스 서비스 하나로 접속까지 겸한다.
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: naeil-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

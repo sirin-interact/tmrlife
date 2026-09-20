@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "stage": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3,
+      "description": "0 해당 없음, 1 확인, 2 대응, 3 긴급"
+    },
+    "evidence": {
+      "type": "string",
+      "description": "last_user_utterance에서 글자 그대로 잘라 옮긴 근거. 0단계면 빈 문자열"
+    }
+  },
+  "required": ["stage", "evidence"],
+  "propertyOrdering": ["stage", "evidence"]
+}

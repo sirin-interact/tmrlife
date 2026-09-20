@@ -1,0 +1,21 @@
+# 줄 끝은 저장소 안에서 항상 LF로 둔다.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.woff2 binary
+*.wav binary
+*.mp3 binary
+
+# 생성 코드. 리뷰 화면에서 접히고 언어 통계에서 빠진다.
+# 손으로 고치지 않는다. 원본을 고치고 make generate로 다시 만든다.
+server/internal/store/db/** linguist-generated=true
+server/internal/api/*.gen.go linguist-generated=true
+web/src/api/schema.d.ts linguist-generated=true
+
+# 잠금 파일은 diff에서 접는다.
+server/go.sum linguist-generated=true
+web/pnpm-lock.yaml linguist-generated=true

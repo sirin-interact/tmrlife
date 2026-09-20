@@ -1,0 +1,68 @@
+/*
+ * 디자인 토큰.
+ * 저녁에 하루를 돌아보며 쓰는 앱이라 자극이 적어야 한다. 따뜻한 중성색 바탕에 새벽빛 강조색 하나만 쓴다.
+ * 색은 16진수로만 적는다. 대비 테스트(tokens.test.ts)가 이 파일을 읽어 AA 기준을 확인한다.
+ * 글자와 바탕 조합은 4.5:1 이상, 입력란 테두리와 초점 표시는 3:1 이상을 지킨다.
+ */
+:root {
+  color-scheme: light dark;
+
+  --background: #faf6f0;
+  --foreground: #2a2521;
+  --card: #fffdf9;
+  --card-foreground: #2a2521;
+  --muted: #f1eae1;
+  --muted-foreground: #675d54;
+  --primary: #b4532d;
+  --primary-foreground: #fffbf6;
+  --secondary: #f1e7db;
+  --secondary-foreground: #3a322c;
+  --accent: #fbe3d2;
+  --accent-foreground: #5a2a14;
+  --destructive: #a83a32;
+  --destructive-foreground: #fffbf6;
+  --link: #9c4521;
+  --border: #e6dcd0;
+  --input: #94877a;
+  --ring: #b4532d;
+
+  /* 새벽 하늘 느낌의 장식용 그라데이션. 글자 바탕으로는 쓰지 않는다. */
+  --dawn-from: #fbe3d2;
+  --dawn-to: #faf6f0;
+
+  --radius: 0.875rem;
+  /* 폰과 태블릿에서 손가락으로 누르기 편한 최소 크기 */
+  --touch-target: 3rem;
+  --page-gutter: 1.5rem;
+  --content-width: 28rem;
+
+  --font-family-sans:
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto,
+    'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1b1815;
+    --foreground: #eee7df;
+    --card: #25201c;
+    --card-foreground: #eee7df;
+    --muted: #2d2722;
+    --muted-foreground: #b8ada1;
+    --primary: #f0a57e;
+    --primary-foreground: #2b160b;
+    --secondary: #332c26;
+    --secondary-foreground: #eee7df;
+    --accent: #43291c;
+    --accent-foreground: #fbd9c3;
+    --destructive: #f0968c;
+    --destructive-foreground: #2b0f0c;
+    --link: #f3b08c;
+    --border: #3b332d;
+    --input: #85796d;
+    --ring: #f0a57e;
+
+    --dawn-from: #43291c;
+    --dawn-to: #1b1815;
+  }
+}

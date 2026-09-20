@@ -1,0 +1,41 @@
+# base의 정책이 DB 파드로 들어오는 길을 서버, 작업자, 마이그레이션으로 좁혀 놓았다.
+# 정책은 허용 목록을 더하는 방식이라, DB를 관리하는 쪽이 닿을 길을 여기서 따로 열어 준다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: naeil-db-management
+  labels:
+    app.kubernetes.io/name: naeil-db-management
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: naeil
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: naeil-db
+  policyTypes:
+    - Ingress
+  ingress:
+    # CloudNativePG 컨트롤러가 DB의 상태를 읽고(8000) 관리 작업을 한다(5432).
+    # 설치할 때 네임스페이스를 바꿨다면 여기도 맞춘다.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cnpg-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudnative-pg
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 5432
+    # 복제본을 두면 DB 파드끼리 복제 연결을 맺는다.
+    - from:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: naeil-db
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 8000

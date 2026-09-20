@@ -1,0 +1,240 @@
+name: ci
+
+# main에 들어오는 커밋과 모든 PR을 검사한다.
+# 모든 브랜치의 push까지 걸면 PR을 연 브랜치는 같은 커밋을 두 번 검사하게 된다.
+# PR 없이 브랜치를 검사하고 싶을 때는 Actions 화면에서 직접 돌린다(workflow_dispatch).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # 코드가 그대로여도 취약점 목록은 날마다 늘어난다. 커밋이 없는 동안에는 검사가 한 번도 돌지 않으므로,
+  # 이미 배포된 Go 버전이나 의존성에서 새로 알려진 취약점을 놓치지 않게 일주일에 한 번 main을 다시 검사한다.
+  # 시각은 UTC다(한국 시간 월요일 06:17). 정각은 예약 실행이 몰려 늦어지기 쉬워서 피했다.
+  schedule:
+    - cron: "17 21 * * 0"
+
+# 읽기만 한다. 이미지를 올리거나 저장소에 쓰는 일은 이 워크플로에 없다.
+permissions:
+  contents: read
+
+# 같은 PR에 새 커밋이 올라오면 앞선 검사를 멈춘다. main의 검사는 끝까지 돌려 커밋마다 결과를 남긴다.
+# 묶음에 이벤트 이름을 넣은 까닭: 예약 실행도 main에서 돈다. 같은 묶음이면 예약 실행이 도는 동안 올라온 커밋의 검사가
+# 그 뒤로 밀리고, 기다리던 검사는 새로 들어온 검사에 밀려 취소된다.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # 로컬(Makefile, 설치된 도구)과 같은 버전으로 맞춘다.
+  GOLANGCI_LINT_VERSION: v2.13.2
+  SQLC_VERSION: "1.31.1"
+  GOVULNCHECK_VERSION: v1.8.0
+  KUBECONFORM_VERSION: v0.8.0
+  KUBECONFORM_SHA256: 9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
+
+jobs:
+  server:
+    name: server
+    runs-on: ubuntu-latest
+    # 아래 go test의 제한 시간(시험 실행 파일 하나에 20분)보다 길어야 그 제한이 뜻을 가진다.
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-go
+
+      - name: 모듈 무결성 확인
+        run: go mod verify
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: server
+
+      # DB 테스트는 PostgreSQL 컨테이너를 직접 띄운다. 러너에 Docker가 있고,
+      # CI 환경 변수가 켜져 있어서 Docker가 없으면 건너뛰지 않고 실패한다.
+      # 제한 시간은 Makefile의 GOTESTFLAGS와 같은 값이다. 기본값(10분)에 기대면 계산 코어의 시험이 러너가 느린 날에만 실패한다.
+      - name: go test
+        run: go test -race -timeout 20m ./...
+
+      # 배포되는 두 실행 파일(server, worker)이 실제로 부르는 경로에 알려진 취약점이 있을 때 실패한다.
+      # 표준 라이브러리는 이미지를 빌드하는 Go 버전 그대로 본다(Go 준비 단계가 server/Dockerfile의 버전을 설치한다).
+      # 표준 라이브러리에서 걸리면 결과에 적힌 "Fixed in" 패치로 server/Dockerfile의 GO_VERSION을 올린다.
+      # 범위를 ./cmd/...로 잡은 까닭: ./...로 넓히면 테스트용 도우미(테스트 컨테이너를 띄우는 코드)의 의존성까지 걸리는데,
+      # 그 코드는 이미지에 들어가지 않는다. 배포물의 위험과 개발 도구의 위험을 같은 빨간불로 섞지 않는다.
+      - name: govulncheck
+        run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" ./cmd/...
+
+  # 생성 코드(sqlc, oapi-codegen, API 타입)가 원본과 어긋나지 않았는지 본다.
+  # 서버와 웹의 도구가 모두 필요해서 따로 둔다.
+  generated:
+    name: generated
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      # 캐시는 server 작업의 것만 저장되게 한다. 까닭은 액션의 cache 입력에 적혀 있다.
+      - uses: ./.github/actions/setup-go
+        with:
+          cache: "false"
+
+      - uses: sqlc-dev/setup-sqlc@v5
+        with:
+          sqlc-version: ${{ env.SQLC_VERSION }}
+
+      - uses: ./.github/actions/setup-web
+
+      - name: make generate
+        run: make generate
+
+      - name: 생성 결과가 커밋된 것과 같은지 확인
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::생성 코드가 최신이 아니다. 로컬에서 make generate를 돌리고 결과를 커밋한다."
+            git status --short
+            git diff
+            exit 1
+          fi
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-web
+
+      - name: lint
+        run: pnpm run lint
+
+      - name: typecheck
+        run: pnpm run typecheck
+
+      - name: format
+        run: pnpm run format:check
+
+      - name: test
+        run: pnpm run test
+
+      - name: build
+        run: pnpm run build
+
+  # 이미지를 올리지는 않는다. Dockerfile이 깨지지 않았는지, 만들어진 이미지가 실제로 뜨는지만 본다.
+  images:
+    name: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: server 이미지
+        uses: docker/build-push-action@v7
+        with:
+          context: server
+          tags: naeil-server:ci
+          push: false
+          # 아래 단계에서 띄워 보려면 러너의 Docker로 가져와야 한다. 증명(attestation)이 붙으면 가져올 수 없다.
+          load: true
+          provenance: false
+          cache-from: type=gha,scope=server
+          # 포크에서 온 PR은 캐시에 쓸 권한이 없다. 그 때문에 빌드가 실패하지 않게 한다.
+          cache-to: type=gha,scope=server,mode=max,ignore-error=true
+
+      - name: web 이미지
+        uses: docker/build-push-action@v7
+        with:
+          context: web
+          tags: naeil-web:ci
+          push: false
+          load: true
+          provenance: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max,ignore-error=true
+
+      # 운영과 같은 제약(읽기 전용 루트, 권한 없음, 비루트 사용자)에서 실행 파일이 도는지 본다.
+      - name: server 이미지 확인
+        run: |
+          restricted=(--rm --read-only --cap-drop ALL --security-opt no-new-privileges --user 65532:65532)
+          docker run "${restricted[@]}" naeil-server:ci help
+          # 설정 없이 띄우면 빠진 변수의 이름을 알리고 종료 코드 2로 끝나야 한다.
+          status=0
+          docker run "${restricted[@]}" --entrypoint /app/worker naeil-server:ci || status=$?
+          if [ "$status" -ne 2 ]; then
+            echo "::error::worker가 설정 오류를 종료 코드 2로 알리지 않았다 (받은 값: ${status})"
+            exit 1
+          fi
+
+      - name: web 이미지 확인
+        run: bash deploy/scripts/smoke-web-image.sh naeil-web:ci
+
+  manifests:
+    name: manifests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: kubeconform 설치
+        run: |
+          curl -fsSLo "${RUNNER_TEMP}/kubeconform.tar.gz" \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          echo "${KUBECONFORM_SHA256}  ${RUNNER_TEMP}/kubeconform.tar.gz" | sha256sum --check
+          tar -xzf "${RUNNER_TEMP}/kubeconform.tar.gz" -C "${RUNNER_TEMP}" kubeconform
+
+      # 두 구성을 kubectl kustomize로 펼친 뒤 스키마로 검사한다. 로컬의 make -C deploy validate와 같은 명령이다.
+      - name: 구성 펼치기와 검사
+        run: |
+          kubectl version --client
+          make -C deploy validate KUBECONFORM="${RUNNER_TEMP}/kubeconform"
+
+  # 실제 DB와 API 서버, 빌드된 웹앱을 띄우고 브라우저로 가입부터 로그아웃까지 밟아 본다. 로컬의 make e2e와 같은 명령이다.
+  # 화면과 API를 같은 출처로 묶어서 돌리므로 세션 쿠키와 다른 출처 차단이 운영과 같은 조건에서 확인된다.
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # 캐시는 server 작업의 것만 저장되게 한다. 까닭은 액션의 cache 입력에 적혀 있다.
+      - uses: ./.github/actions/setup-go
+        with:
+          cache: "false"
+
+      - uses: ./.github/actions/setup-web
+
+      # 브라우저는 chromium 하나만, 그중에서도 화면 없이 도는 실행 파일만 받는다.
+      # 러너에 없는 시스템 라이브러리가 있어서 함께 설치한다. make e2e 안의 설치 단계는 이미 받아 둔 것을 보고 넘어간다.
+      - name: 브라우저 설치
+        working-directory: web
+        run: pnpm exec playwright install --with-deps --only-shell chromium
+
+      - name: make e2e
+        run: make e2e
+
+      # 실패했을 때만 남긴다. 기록에 담기는 계정은 테스트가 지어낸 주소이고, DB는 러너와 함께 사라진다.
+      - name: 실패 기록 올리기
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-report
+          path: |
+            web/playwright-report/
+            web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

@@ -1,0 +1,104 @@
+# 웹앱(정적 파일) 서버.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: naeil-web
+  labels:
+    app.kubernetes.io/name: naeil-web
+    app.kubernetes.io/component: web
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: naeil-web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: naeil-web
+        app.kubernetes.io/component: web
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      # preStop 5초 + 처리 중인 요청을 기다리는 10초 + 여유.
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: naeil-web
+      containers:
+        - name: web
+          image: naeil-web
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          # 이 /healthz는 정적 파일 서버가 직접 답한다. 밖에서 보이는 /healthz(API 서버)와는 다른 것이다.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          lifecycle:
+            preStop:
+              # 파드가 내려간다는 사실이 인그레스에 퍼질 때까지 잠깐 기다린 뒤 종료 신호를 받는다.
+              sleep:
+                seconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            # 루트 파일 시스템이 읽기 전용이다. 서버가 시작할 때 만드는 식별자와 잠금 파일을 둘 자리만 열어 준다.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: naeil-web
+  labels:
+    app.kubernetes.io/name: naeil-web
+    app.kubernetes.io/component: web
+spec:
+  selector:
+    app.kubernetes.io/name: naeil-web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

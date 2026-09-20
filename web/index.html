@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- interactive-widget: 화면 키보드가 올라오면 화면 높이가 함께 줄어든다. 대화 화면의 입력란과 끝내기 버튼이 키보드에 가려지지 않는다. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <title>내일</title>
+    <meta
+      name="description"
+      content="오늘을 말하면, 내일이 보여요. 하루 5분, 말로 쓰는 마음 일기."
+    />
+    <!-- 값은 디자인 토큰의 --background(밝은 테마, 어두운 테마)와 같아야 한다. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf6f0" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1b1815" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="내일" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>내일을 쓰려면 브라우저에서 자바스크립트를 켜 주세요.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

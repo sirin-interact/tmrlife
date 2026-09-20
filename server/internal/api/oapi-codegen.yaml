@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/v2.8.0/configuration-schema.json
+# 명세(server/openapi.yaml)에서 Echo v5용 서버 틀, 요청과 응답의 타입, 실행 파일에 담을 명세를 만든다.
+# 돌리는 법: make generate. 만들어진 api.gen.go는 손으로 고치지 않는다.
+package: api
+output: api.gen.go
+generate:
+  echo5-server: true
+  strict-server: true
+  models: true
+  embedded-spec: true
+compatibility:
+  # 열거형 상수에 늘 타입 이름을 붙인다(ConsentKindTerms). 붙이지 않으면 Email, Timezone 같은 흔한 이름이 패키지를 차지한다.
+  always-prefix-enum-values: true
+  # 실행 파일에 담는 명세의 operationId를 원본 그대로 둔다(getMe). 기본값은 Go 이름(GetMe)으로 바꿔 담는데,
+  # 그러면 담긴 명세에서 읽은 이름이 경로를 등록할 때 쓰는 이름과 어긋난다.
+  preserve-original-operation-id-casing-in-embedded-spec: true
+output-options:
+  # request_id를 RequestId가 아니라 RequestID로 만든다.
+  name-normalizer: ToCamelCaseWithInitialisms
+  # 어느 경로에서도 가리키지 않는 스키마도 타입으로 만든다. 대화 채널(WebSocket)의 메시지가 그렇다.
+  # 명세의 paths에는 적을 수 없는 경로라서, 끄지 않으면 쓰이지 않는 것으로 보고 통째로 빼 버린다.
+  skip-prune: true

@@ -1,0 +1,23 @@
+# TLS 인증서. cert-manager가 발급해 Secret naeil-tls에 넣고, 만료 전에 알아서 갱신한다.
+# cert-manager와 ClusterIssuer는 클러스터에 미리 만들어 둔다(deploy/README.md).
+# Ingress에 cert-manager 주석을 함께 달지 않는다. 같은 인증서를 두 번 요청하게 된다.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: naeil-tls
+  labels:
+    app.kubernetes.io/name: naeil-tls
+    app.kubernetes.io/part-of: naeil
+spec:
+  secretName: naeil-tls
+  dnsNames:
+    - app.example.com
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    # 갱신할 때마다 개인 키도 새로 만든다.
+    rotationPolicy: Always

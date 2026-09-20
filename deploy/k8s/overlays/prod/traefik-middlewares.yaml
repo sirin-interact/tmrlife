@@ -1,0 +1,24 @@
+# Traefik(K3s 기본 인그레스 컨트롤러)의 미들웨어. Ingress의 주석에서 "<네임스페이스>-<이름>@kubernetescrd"로 가리킨다.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  labels:
+    app.kubernetes.io/part-of: naeil
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+# HTTPS 응답에 HSTS를 붙인다. 한번 HTTPS로 들어온 브라우저는 1년 동안 HTTP로 접속을 시도하지 않는다.
+# API 서버도 운영 모드에서 같은 값을 직접 붙인다. 여기서 한 번 더 거는 것은 정적 파일 응답까지 덮기 위해서다.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: hsts
+  labels:
+    app.kubernetes.io/part-of: naeil
+spec:
+  headers:
+    stsSeconds: 31536000
+    stsIncludeSubdomains: true

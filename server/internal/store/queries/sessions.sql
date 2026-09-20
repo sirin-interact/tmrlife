@@ -1,0 +1,55 @@
+-- name: CreateSession :one
+INSERT INTO sessions (id, user_id, token_hash, created_at, last_seen_at, expires_at, user_agent, ip)
+VALUES (
+    sqlc.arg(id),
+    sqlc.arg(user_id),
+    sqlc.arg(token_hash),
+    sqlc.arg(now),
+    sqlc.arg(now),
+    sqlc.arg(expires_at),
+    sqlc.narg(user_agent),
+    sqlc.narg(ip)
+)
+RETURNING *;
+
+-- name: GetSessionWithUserByTokenHash :one
+-- 만료된 세션은 없는 것으로 친다. 만료 확인을 부르는 쪽에 맡기면 한 곳만 빠뜨려도 끝난 세션으로 들어올 수 있다.
+--
+-- 사용자는 행 전체가 아니라 필요한 컬럼만 읽는다. 이 쿼리는 로그인한 요청마다 돌기 때문에,
+-- 행을 통째로 읽으면 비밀번호 해시가 요청마다 DB에서 건너와 메모리에 올라온다. 쓰이지 않는 값이고,
+-- 누군가 이 결과를 로그에 찍거나 응답으로 내보내는 코드를 더하는 날 그대로 새어 나간다.
+-- 비밀번호가 있는 계정인지만 알면 되므로 그것만 참거짓으로 받는다. 해시가 필요한 곳은 로그인(GetUserByEmail)뿐이다.
+SELECT sqlc.embed(s),
+       u.email,
+       u.email_verified_at,
+       u.display_name,
+       u.timezone,
+       u.role,
+       u.is_demo,
+       (u.password_hash IS NOT NULL)::boolean AS has_password,
+       u.created_at AS user_created_at
+FROM sessions AS s
+JOIN users AS u ON u.id = s.user_id
+WHERE s.token_hash = sqlc.arg(token_hash)
+  AND s.expires_at > sqlc.arg(now);
+
+-- name: TouchSession :execrows
+-- 쓰는 동안 만료를 뒤로 민다. 만료는 늘어나기만 하고, 이미 끝난 세션은 되살리지 않는다.
+UPDATE sessions
+SET last_seen_at = GREATEST(last_seen_at, sqlc.arg(now)::timestamptz),
+    expires_at   = GREATEST(expires_at, sqlc.arg(expires_at)::timestamptz)
+WHERE id = sqlc.arg(id)
+  AND expires_at > sqlc.arg(now)::timestamptz;
+
+-- name: DeleteSession :exec
+DELETE FROM sessions WHERE id = sqlc.arg(id);
+
+-- name: DeleteSessionByTokenHash :execrows
+-- 로그아웃할 때와, 새로 로그인하면서 그 브라우저가 들고 있던 세션을 끊을 때 쓴다.
+DELETE FROM sessions WHERE token_hash = sqlc.arg(token_hash);
+
+-- name: DeleteSessionsByUser :execrows
+DELETE FROM sessions WHERE user_id = sqlc.arg(user_id);
+
+-- name: DeleteExpiredSessions :execrows
+DELETE FROM sessions WHERE expires_at <= sqlc.arg(now);

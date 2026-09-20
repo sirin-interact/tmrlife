@@ -1,0 +1,50 @@
+# PostgreSQL 18. CloudNativePG가 이 정의를 보고 DB 파드, 서비스, 접속용 Secret을 만든다.
+# CloudNativePG 자체는 클러스터에 미리 설치해 둔다(deploy/README.md).
+#
+# 만들어지는 것 가운데 앱이 쓰는 것:
+#   - Service naeil-db-rw   쓰기 가능한 주 서버
+#   - Secret naeil-db-app   앱 계정의 접속 정보. 키 uri를 서버, 작업자, 마이그레이션이 DATABASE_URL로 받는다.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: naeil-db
+spec:
+  # 노드가 하나인 클러스터에 맞춘 값이다. 노드가 셋 이상이면 3으로 올린다.
+  # 그러면 주 서버가 죽어도 복제본이 이어받는다. 하나일 때는 그 노드의 디스크가 곧 유일한 사본이다.
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
+
+  # 앱의 네트워크 정책이 이 레이블을 보고 DB 파드를 알아본다.
+  inheritedMetadata:
+    labels:
+      app.kubernetes.io/part-of: naeil
+      app.kubernetes.io/component: database
+
+  bootstrap:
+    initdb:
+      database: naeil
+      # 앱 계정이 DB의 주인이어야 마이그레이션이 확장(citext)과 테이블을 만들 수 있다.
+      owner: naeil
+
+  postgresql:
+    parameters:
+      # 오류 로그에서 DETAIL 줄을 뺀다. 이미 가입된 이메일로 다시 가입하면 PostgreSQL이
+      # "Key (email)=(...) already exists"를 DETAIL에 적어서 사용자의 이메일이 DB 로그에 남는다.
+      # 서버가 받는 오류 코드와 제약 이름은 그대로라서 앱의 동작은 달라지지 않는다.
+      log_error_verbosity: terse
+
+  storage:
+    size: 10Gi
+    # 비워 두면 클러스터의 기본 스토리지 클래스를 쓴다. K3s의 기본값(local-path)은 노드의 디스크다.
+    # storageClass: local-path
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+
+  # 백업은 여기에 들어 있지 않다. 오브젝트 스토리지가 정해지면 Barman Cloud 플러그인으로 붙인다.
+  # 백업 없이 실제 기록을 받지 않는다.

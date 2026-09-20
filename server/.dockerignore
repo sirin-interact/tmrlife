@@ -1,0 +1,23 @@
+# 빌드에 필요 없는 파일을 빌드 컨텍스트에서 뺀다.
+# 컨텍스트가 작아야 소스와 무관한 변경으로 캐시가 깨지지 않는다.
+# migrations/처럼 실행 파일에 담기는 디렉터리는 빼면 안 된다.
+
+Dockerfile
+.dockerignore
+.golangci.yml
+
+# 빌드 산출물과 검사 결과
+bin/
+tmp/
+*.exe
+*.test
+*.out
+*.prof
+coverage.*
+*.coverprofile
+
+# 비밀 값이 이미지 층에 남지 않게 한다.
+.env
+.env.*
+
+.DS_Store

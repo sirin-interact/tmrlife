@@ -1,0 +1,84 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 환경과 무관한 공통 구성이다. 이 디렉터리를 그대로 배포하지 않는다.
+# 네임스페이스, 이미지 주소, 도메인, DB는 overlays/ 아래의 환경별 구성이 정한다.
+#
+# 이 구성이 바깥에 기대하는 것:
+#   - Secret naeil-secrets   마스터 키와 외부 API 키 (secret.example.yaml 참고)
+#   - Secret naeil-db-app    키 uri에 PostgreSQL 접속 주소 (secret.example.yaml 참고)
+#   - DB 파드의 레이블        app.kubernetes.io/part-of=naeil, app.kubernetes.io/component=database
+
+resources:
+  - server.yaml
+  - worker.yaml
+  - web.yaml
+  - migrate-job.yaml
+  - ingress.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: naeil
+    # 셀렉터는 한번 만들면 바꿀 수 없다. 공통 레이블은 셀렉터에 넣지 않는다.
+    includeSelectors: false
+    includeTemplates: true
+
+# 이름 끝에 내용의 해시가 붙는다. 값을 바꾸면 이름이 바뀌고, 그래서 파드가 새 값으로 다시 뜬다.
+# 비밀이 아닌 값만 둔다. 환경마다 다른 값은 overlay가 behavior: merge로 덮어쓴다.
+configMapGenerator:
+  - name: naeil-config
+    literals:
+      - APP_ENV=prod
+      - HTTP_ADDR=:8080
+      # 작업자가 상태 확인 요청을 받는 주소다. worker.yaml의 health 포트와 번호가 같아야 한다.
+      - WORKER_HEALTH_ADDR=:8081
+      - LOG_LEVEL=info
+      # 브라우저 주소창에 보이는 출처와 글자 그대로 같아야 한다. overlay가 실제 값으로 덮어쓴다.
+      - PUBLIC_ORIGIN=https://app.example.com
+      # 서버 앞에 있는 프록시의 주소 범위다. 이 범위에서 온 연결일 때만 X-Forwarded-For를 믿는다.
+      # 비워 두면 헤더를 보지 않아서 모든 요청이 프록시 한 곳에서 온 것으로 보인다.
+      # 그러면 주소별 시도 한도가 모든 사용자가 함께 쓰는 한도 하나가 된다. 인그레스를 거치는 환경의 overlay는 반드시 채운다.
+      - TRUSTED_PROXIES=
+      # 쿠키가 HTTPS 전용이면 서버가 이름 앞에 __Host-를 붙여서 쓴다. 여기에는 앞머리 없이 적는다.
+      - SESSION_COOKIE_NAME=naeil_session
+      - SESSION_COOKIE_SECURE=true
+      # 로그인한 때부터 재는 전체 수명(30일)과, 마지막으로 쓴 때부터 재는 한도(14일)다. 뒤의 값이 앞의 값보다 길 수 없다.
+      - SESSION_ABSOLUTE_LIFETIME=720h
+      - SESSION_IDLE_LIFETIME=336h
+      # 마지막으로 쓴 시각을 DB에 다시 적는 최소 간격이다. 요청마다 적으면 읽기만 하는 요청도 모두 쓰기가 된다.
+      - SESSION_TOUCH_INTERVAL=5m
+      # 시도 한도는 횟수/주기 꼴이다. 한꺼번에 그 횟수까지 되고, 쓴 만큼은 주기에 걸쳐 고르게 다시 찬다.
+      # 파드마다 따로 세므로 서버 복제본이 N개면 실제 한도는 N배가 되고, 파드가 다시 뜨면 처음부터 센다.
+      - RATE_LIMIT_SIGNUP_PER_IP=20/1h
+      - RATE_LIMIT_LOGIN_PER_IP=30/5m
+      # 한 계정에 대한 로그인 시도는 두 겹으로 센다. 앞의 값은 주소마다 따로 세서, 남이 틀린 비밀번호를 계속 넣어도 그 사람의 주소만 막힌다.
+      # 뒤의 값은 주소를 가리지 않고 모두 세서, 주소를 바꿔 가며 대입해 보는 것을 늦춘다.
+      # 뒤의 값은 앞의 값보다 한꺼번에 받는 횟수가 많고 다시 차는 속도도 같거나 빨라야 한다. 아니면 서버가 뜨지 않는다.
+      - RATE_LIMIT_LOGIN_PER_EMAIL=10/10m
+      - RATE_LIMIT_LOGIN_PER_EMAIL_TOTAL=60/1h
+      # 한도 하나가 기억하는 주소나 계정의 최대 수다. 하나에 200바이트쯤 쓰고 한도가 넷이라, 가득 차면 40MB쯤이다.
+      - RATE_LIMIT_MAX_KEYS=50000
+      # 비밀번호 해시(argon2id)를 만드는 값이다. 올리면 그 뒤로 로그인하는 사용자의 해시가 새 값으로 다시 만들어진다.
+      - PASSWORD_ARGON2_MEMORY_KIB=19456
+      - PASSWORD_ARGON2_TIME=2
+      - PASSWORD_ARGON2_PARALLELISM=1
+      # 해시를 계산하는 동안 메모리를 (MEMORY_KIB x 이 값)까지 쓴다. 기본값으로 76MiB쯤이다.
+      # 둘 중 하나를 올리면 server.yaml의 메모리 상한 안에 들어가는지 함께 본다.
+      - PASSWORD_HASH_CONCURRENCY=4
+      # 풀어 둔 사용자별 데이터 키를 파드 하나가 몇 명분까지, 얼마 동안 들고 있을지다.
+      # 다른 파드에서 지운 계정의 키를 MAX_AGE 넘게 들고 있지 않는다.
+      - DATA_KEY_CACHE_SIZE=1024
+      - DATA_KEY_CACHE_MAX_AGE=10m
+      # 새 데이터 키를 감쌀 마스터 키의 버전이다. Secret에 DATA_KEK_V<번호>가 있어야 한다.
+      - DATA_KEK_ACTIVE=1
+      # 모델은 몇 달마다 바뀐다. 이미지를 다시 만들지 않고 여기서 바꾼다.
+      - LLM_MODEL_CONVERSATION=gemini-3.8-flash
+      - LLM_MODEL_CONVERSATION_FALLBACK=gemini-3.6-flash
+      - LLM_MODEL_GATE=gemini-3.5-flash
+      - LLM_MODEL_ANALYSIS=gemini-3.8-flash
+      - LLM_THINKING_CONVERSATION=low
+      - LLM_THINKING_GATE=minimal
+      - LLM_THINKING_ANALYSIS=low
+      - LLM_FALLBACK_AFTER=3s

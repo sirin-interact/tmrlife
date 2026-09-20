@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: naeil-local
+  labels:
+    # 파드 보안 기준. 호스트 접근 같은 위험한 설정은 거부하고(baseline),
+    # 더 엄격한 기준(restricted)에 어긋나는 파드는 경고로 알려 준다.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

@@ -1,0 +1,68 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 내 컴퓨터의 쿠버네티스(OrbStack)에서 배포 구성을 확인하는 용도다. 운영에 쓰지 않는다.
+# 비밀번호와 키가 모두 공개된 개발용 값이다.
+
+namespace: naeil-local
+
+resources:
+  - ../../base
+  - namespace.yaml
+  - postgres.yaml
+
+# 로컬에서 빌드한 이미지를 그대로 쓴다. OrbStack은 도커와 이미지 저장소를 함께 쓰므로 올릴 필요가 없다.
+#   docker build -t naeil-server:dev server && docker build -t naeil-web:dev web
+images:
+  - name: naeil-server
+    newName: naeil-server
+    newTag: dev
+  - name: naeil-web
+    newName: naeil-web
+    newTag: dev
+
+configMapGenerator:
+  - name: naeil-config
+    behavior: merge
+    literals:
+      # prod로 띄우면 서버가 아래의 공개된 개발용 키와 http 출처를 거부한다.
+      - APP_ENV=dev
+      # 포트 포워딩으로 여는 주소와 글자 그대로 같아야 한다. 포트를 바꾸면 여기도 바꾼다.
+      - PUBLIC_ORIGIN=http://naeil.localhost:8088
+      - SESSION_COOKIE_SECURE=false
+      # TRUSTED_PROXIES는 비워 둔 채로 쓴다. 포트 포워딩으로 들어온 연결은 웹 파드 안에서 시작되므로 되찾을 클라이언트 주소가 없다.
+      # 그래서 로컬에서는 주소별 시도 한도가 한도 하나로 동작한다. 혼자 쓰는 환경이라 문제가 되지 않는다.
+  # 웹 파드에 끼워 넣는 로컬 전용 프록시 설정이다. local-proxy.caddy의 설명을 본다.
+  - name: naeil-web-local
+    files:
+      - local-proxy.caddy
+
+secretGenerator:
+  - name: naeil-secrets
+    literals:
+      # 저장소에 공개된 개발 전용 키다. 실제 기록을 이 키로 암호화하지 않는다. APP_ENV=prod에서는 서버가 거부한다.
+      - DATA_KEK_V1=bmFlaWwtZGV2LW9ubHkta2VrLWRvLW5vdC11c2UhISE=
+  # 운영에서 DB가 만들어 주는 Secret과 같은 이름, 같은 키 모양이다. 로컬 DB도 여기서 계정을 읽는다.
+  - name: naeil-db-app
+    literals:
+      - username=naeil
+      - password=naeil
+      - dbname=naeil
+      - uri=postgres://naeil:naeil@naeil-postgres:5432/naeil?sslmode=disable
+
+patches:
+  # 인그레스 컨트롤러를 따로 설치했을 때만 쓰인다. 없으면 이 Ingress는 만들어지기만 하고 아무 일도 하지 않는다.
+  # *.localhost는 브라우저가 알아서 127.0.0.1로 푼다.
+  # 목록을 통째로 바꿔 버리는 병합 방식 대신, 첫 규칙에 호스트만 끼워 넣는다.
+  - target:
+      kind: Ingress
+      name: naeil
+    patch: |-
+      - op: add
+        path: /spec/rules/0/host
+        value: naeil.localhost
+  - path: patch-web.yaml
+  - path: patch-provider-keys.yaml
+    target:
+      kind: Deployment
+      name: naeil-(server|worker)

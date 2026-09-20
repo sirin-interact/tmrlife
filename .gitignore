@@ -12,3 +12,36 @@ CLAUDE.local.md
 
 # OS
 .DS_Store
+
+# Go 빌드 산출물
+/server/bin/
+/server/tmp/
+*.exe
+*.test
+*.out
+*.prof
+
+# Node 빌드 산출물
+node_modules/
+/web/dist/
+/web/dev-dist/
+.pnpm-store/
+.vite/
+*.tsbuildinfo
+.eslintcache
+
+# 커버리지
+coverage/
+coverage.*
+*.coverprofile
+*.lcov
+
+# Playwright
+/web/test-results/
+/web/playwright-report/
+/web/blob-report/
+/web/playwright/.cache/
+/web/playwright/.auth/
+
+# 로그
+*.log

@@ -1,0 +1,28 @@
+# 빌드에 필요 없는 파일을 빌드 컨텍스트에서 뺀다.
+# 호스트의 node_modules에는 호스트 운영체제용 실행 파일이 들어 있어 컨테이너 안에서 쓸 수 없다.
+# dist도 반드시 뺀다. 빠지지 않으면 컨테이너에서 새로 빌드한 결과 대신 호스트의 옛 결과가 섞여 들어간다.
+
+node_modules/
+dist/
+dev-dist/
+
+Dockerfile
+.dockerignore
+
+# 검사와 테스트의 산출물
+coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/
+.vite/
+.eslintcache
+*.tsbuildinfo
+*.log
+
+# 비밀 값이 이미지 층에 남지 않게 한다.
+.env
+.env.*
+
+.DS_Store

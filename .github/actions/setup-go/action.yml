@@ -1,0 +1,54 @@
+name: Go 준비
+description: server/Dockerfile이 고정한 Go 버전을 그대로 설치하고 모듈 캐시를 되살린다. checkout 뒤에 부른다.
+
+inputs:
+  # 캐시의 이름은 운영체제, Go 버전, go.sum으로만 정해져서 이 액션을 부르는 작업이 모두 같은 이름을 쓴다.
+  # 같은 이름의 캐시는 먼저 끝난 작업의 것만 저장되고 나머지는 버려진다. 시험보다 빨리 끝나는 작업이 자리를 차지하면
+  # 경합 검사(-race)로 빌드한 결과가 한 번도 저장되지 않아, 가장 오래 걸리는 server 작업이 매번 처음부터 컴파일한다.
+  # 그래서 server 작업만 캐시를 쓰고, 나머지 작업은 false를 준다. false면 되살리지도 저장하지도 않는다.
+  cache:
+    description: 모듈과 빌드 캐시를 되살리고 저장할지 (true | false)
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    # 배포되는 실행 파일은 server/Dockerfile의 GO_VERSION으로 빌드된다. CI가 그와 다른 패치 버전을 쓰면
+    # 시험과 취약점 검사가 배포물에 들어가지 않는 표준 라이브러리를 보게 된다. 계열(1.26)의 최신 패치를 설치하게 두면
+    # 새 패치가 나온 날부터 CI만 그쪽으로 옮겨 가서 초록불로 남고, 이미지에는 고쳐지지 않은 표준 라이브러리가 그대로 실린다.
+    # 그래서 버전은 Dockerfile 한 곳에만 적고 여기서는 그 줄을 읽는다. 고정한 버전의 표준 라이브러리에서
+    # 실행 파일이 실제로 부르는 취약점이 알려지면 검사가 빨간불이 되고, 그때 Dockerfile의 그 한 줄을 올린다.
+    - name: Dockerfile에서 Go 버전 읽기
+      id: version
+      shell: bash
+      run: |
+        version="$(sed -n 's/^ARG GO_VERSION=//p' server/Dockerfile)"
+        # 패치 버전까지 적힌 값만 받는다. 1.26처럼 계열만 적히면 설치되는 패치가 날마다 달라질 수 있다.
+        # 줄이 없거나 둘 이상이어도 이 검사에 걸린다.
+        if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error file=server/Dockerfile::ARG GO_VERSION=에서 패치 버전까지 적힌 Go 버전(예: 1.26.8)을 읽지 못했다"
+          exit 1
+        fi
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/setup-go@v7
+      with:
+        go-version: ${{ steps.version.outputs.version }}
+        cache: ${{ inputs.cache }}
+        cache-dependency-path: server/go.sum
+
+    # 위 단계의 입력을 누가 범위나 최신 패치로 되돌리거나, go.mod이 더 높은 버전을 요구해서 go 명령이
+    # 다른 툴체인을 내려받아 갈아타면 검사 대상이 다시 배포물과 어긋난다. 조용히 어긋나지 않게 여기서 멈춘다.
+    # go.mod이 있는 server/에서 물어야 빌드와 시험에 실제로 쓰일 버전이 나온다.
+    - name: 설치된 Go가 이미지의 Go와 같은지 확인
+      shell: bash
+      working-directory: server
+      env:
+        PINNED: ${{ steps.version.outputs.version }}
+      run: |
+        have="$(go env GOVERSION || true)"
+        if [ "$have" != "go${PINNED}" ]; then
+          echo "::error::CI가 쓰는 Go(${have:-알 수 없음})가 server/Dockerfile이 고정한 Go(go${PINNED})와 다르다"
+          exit 1
+        fi

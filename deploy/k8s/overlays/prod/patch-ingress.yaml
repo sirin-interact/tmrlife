@@ -1,0 +1,17 @@
+# 주 Ingress를 HTTPS 진입점에만 묶고, 호스트와 인증서를 붙인다.
+- op: add
+  path: /metadata/annotations
+  value:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # 형식은 <네임스페이스>-<미들웨어 이름>@kubernetescrd 이다. 네임스페이스를 바꾸면 앞부분도 바꾼다.
+    traefik.ingress.kubernetes.io/router.middlewares: naeil-hsts@kubernetescrd
+- op: add
+  path: /spec/rules/0/host
+  value: app.example.com
+- op: add
+  path: /spec/tls
+  value:
+    - hosts:
+        - app.example.com
+      secretName: naeil-tls

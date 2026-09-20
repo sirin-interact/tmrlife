@@ -1,0 +1,77 @@
+# 마이그레이션을 한 번 돌리는 Job. 앱 스키마와 작업 큐 스키마를 끝까지 올린다.
+#
+# 서버와 작업자의 initContainer도 같은 명령을 돌리므로, 스키마가 준비되기 전에 서버가 뜨는 일은 이 Job 없이도 없다.
+# 그래도 Job을 따로 두는 까닭은 두 가지다.
+#   - 결과가 한 곳에 남는다. 배포마다 `kubectl logs job/naeil-migrate`로 무엇이 적용됐는지 본다.
+#   - 배포 절차가 이 Job의 성공을 기다릴 수 있다. 실패하면 새 파드가 뜨기를 기다릴 것 없이 바로 안다.
+#
+# Job의 파드 정의는 한번 만들면 바꿀 수 없다. 이미지 태그가 바뀐 채로 다시 apply하면 이 Job만 거부된다.
+# 그래서 배포 절차는 apply 앞에 옛 Job을 지운다: kubectl delete job naeil-migrate --ignore-not-found
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: naeil-migrate
+  labels:
+    app.kubernetes.io/name: naeil-migrate
+    app.kubernetes.io/component: migrate
+spec:
+  # DB가 처음 뜨는 데 1~2분이 걸릴 수 있다. 실패 사이의 대기 시간이 두 배씩 늘어나므로 여섯 번이면 그동안을 넉넉히 덮는다.
+  backoffLimit: 6
+  # 서버 쪽 제한(10분)보다 조금 길게 둔다. 이 시간을 넘기면 쿠버네티스가 Job을 실패로 끝낸다.
+  activeDeadlineSeconds: 900
+  # 끝난 Job은 하루 뒤에 스스로 지워진다. 그 전까지는 로그를 볼 수 있다.
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: naeil-migrate
+        app.kubernetes.io/component: migrate
+    spec:
+      # 실패한 파드를 남겨 두어야 로그로 원인을 볼 수 있다. 다시 시도할 때는 새 파드가 뜬다.
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: naeil-server
+          imagePullPolicy: IfNotPresent
+          args: ["migrate", "up"]
+          env:
+            # 스키마만 고치는 작업이라 접속 주소만 넘긴다. 마스터 키와 API 키는 주지 않는다.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: naeil-db-app
+                  key: uri
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: naeil-config
+                  key: LOG_LEVEL
+            # 접속 주소에 sslmode가 없는 환경에서는 설정의 PGSSLMODE가 TLS를 요구한다. 서버와 작업자는 설정을 통째로 받아서
+            # 그 값을 보지만, 접속 주소만 받는 이 단계는 따로 넘겨주지 않으면 접속 라이브러리의 느슨한 기본값으로 붙는다.
+            # 설정에 이 키가 없는 환경에서는 아무것도 넘기지 않는다.
+            - name: PGSSLMODE
+              valueFrom:
+                configMapKeyRef:
+                  name: naeil-config
+                  key: PGSSLMODE
+                  optional: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

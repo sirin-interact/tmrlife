@@ -1,0 +1,22 @@
+name: 웹 준비
+description: pnpm과 Node.js를 설치하고 web/의 의존성을 잠금 파일 그대로 설치한다. checkout 뒤에 부른다.
+
+runs:
+  using: composite
+  steps:
+    # pnpm 버전은 web/package.json의 packageManager 값을 따른다.
+    - uses: pnpm/action-setup@v6
+      with:
+        package_json_file: web/package.json
+
+    - uses: actions/setup-node@v7
+      with:
+        # web/Dockerfile의 NODE_VERSION과 같은 계열로 맞춘다.
+        node-version: 24
+        cache: pnpm
+        cache-dependency-path: web/pnpm-lock.yaml
+
+    - name: 의존성 설치
+      shell: bash
+      working-directory: web
+      run: pnpm install --frozen-lockfile

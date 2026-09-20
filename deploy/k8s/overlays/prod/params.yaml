@@ -1,0 +1,13 @@
+# 배포할 때 바꾸는 값을 한곳에 모았다. kustomization.yaml의 replacements가 이 값을 필요한 자리마다 옮겨 적는다.
+# local-config 표시가 있어 이 ConfigMap 자체는 클러스터에 만들어지지 않는다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: naeil-deploy-params
+  annotations:
+    config.kubernetes.io/local-config: "true"
+data:
+  # 서비스가 열리는 도메인. DNS가 K3s 노드(또는 그 앞의 로드 밸런서)를 가리키고 있어야 인증서가 발급된다.
+  host: app.example.com
+  # cert-manager에 만들어 둔 ClusterIssuer의 이름.
+  clusterIssuer: letsencrypt-prod
