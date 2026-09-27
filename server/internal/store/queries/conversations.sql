@@ -109,6 +109,49 @@ SET processing_status = sqlc.arg(processing_status)
 WHERE id = sqlc.arg(id)
   AND user_id = sqlc.arg(user_id);
 
+-- name: ClaimConversationAnalysis :one
+-- 끝난 대화의 신호 추출을 작업자 하나가 맡는다. 맡은 쪽만 행을 돌려받는다.
+--
+-- 열려 있는 대화는 맡지 않는다. 아직 이어질 말이 남았는데 뽑으면 일부만 본 결과가 하루의 판단으로 굳는다.
+-- 이미 끝난 분석(done)은 다시 맡지 않는다. 같은 대화의 신호 행은 유일 제약에 걸려 두 번 들어갈 수 없으므로,
+-- 다시 맡아도 하는 일은 실패하는 것뿐이다.
+-- 실패한 분석(failed)은 다시 맡는다. 모델의 실패는 대개 그 답 하나의 문제라 다시 해 볼 만하다.
+UPDATE conversations
+SET analysis_status = 'running'
+WHERE id = sqlc.arg(id)
+  AND user_id = sqlc.arg(user_id)
+  AND status <> 'active'
+  AND analysis_status IN ('none', 'pending', 'failed')
+RETURNING *;
+
+-- name: SetConversationAnalysisStatus :one
+-- 신호 추출의 진행 상태를 적는다. 끝난 대화에만 적는다.
+--
+-- 이미 done인 대화의 상태는 바꾸지 않는다. done은 여덟 항목의 신호 행과 같은 트랜잭션에서만 적히는 값이라
+-- (store.SaveConversationSignals), 뒤늦게 돌아온 작업자가 그 사실을 running이나 failed로 덮으면
+-- "분석이 끝난 대화"라는 표시와 실제로 들어 있는 행이 어긋난다.
+-- done을 다시 적는 것은 받아 준다. 같은 작업을 두 번 돌려도 결과가 같아야 한다.
+UPDATE conversations
+SET analysis_status = sqlc.arg(analysis_status)
+WHERE id = sqlc.arg(id)
+  AND user_id = sqlc.arg(user_id)
+  AND status <> 'active'
+  AND (analysis_status <> 'done' OR sqlc.arg(analysis_status)::text = 'done')
+RETURNING *;
+
+-- name: HasAnalysedConversationOnDate :one
+-- 그날 신호 추출이 끝난 대화가 있는지다. 근거 화면이 "대화하지 않은 날"과 "아직 분석이 끝나지 않은 날"을 가리는 데 쓴다.
+-- 신호 행이 있는지로 물어도 같은 답이 나온다. 여덟 항목과 done은 한 트랜잭션에서 함께 적히기 때문이다.
+SELECT EXISTS (
+    SELECT 1
+    FROM conversations AS c
+    JOIN days AS d ON d.id = c.day_id
+    WHERE c.user_id = sqlc.arg(user_id)
+      AND d.user_id = sqlc.arg(user_id)
+      AND d.record_date = sqlc.arg(record_date)
+      AND c.analysis_status = 'done'
+)::boolean AS analysed;
+
 -- name: ListConversationsByDay :many
 -- 그날의 대화를 시작한 순서대로 돌려준다. crisis는 그 대화에 대응 단계 이상의 관문 기록이 있는지다.
 -- 그런 대화에서는 일기 초안을 자동으로 만들지 않고, 끝날 때까지 도움 자원을 화면에 고정해 둔다.

@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { RouteObject } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -266,7 +266,7 @@ describe('어느 화면에서나', () => {
     },
   );
 
-  it('로그인한 사람에게는 오늘과 일기장으로 가는 메뉴가 있다', async () => {
+  it('로그인한 사람에게는 오늘과 일기장, 변화 추세로 가는 메뉴가 있다', async () => {
     mockApi({ 'GET /api/v1/me': signedIn });
 
     renderRoute('/');
@@ -274,6 +274,8 @@ describe('어느 화면에서나', () => {
     const menu = await screen.findByRole('navigation', { name: '주요 메뉴' });
     expect(menu).toContainElement(screen.getByRole('link', { name: '오늘' }));
     expect(screen.getByRole('link', { name: '일기장' })).toHaveAttribute('href', '/diary');
+    // 이 앱이 가장 보여 주고 싶은 화면이다. 첫 화면의 카드를 거치지 않고도 갈 수 있어야 한다.
+    expect(within(menu).getByRole('link', { name: '변화 추세' })).toHaveAttribute('href', '/trend');
     expect(screen.getByRole('link', { name: '오늘' })).toHaveAttribute('aria-current', 'page');
   });
 

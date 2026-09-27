@@ -15,9 +15,9 @@ type workerSettings struct {
 	analysis ai.LLM
 }
 
-// WithAnalysisModel은 대화가 끝난 뒤의 일(일기 초안)에 쓸 언어 모델을 준다.
+// WithAnalysisModel은 대화가 끝난 뒤의 일(일기 초안, 마음 신호 추출)에 쓸 언어 모델을 준다.
 //
-// 주지 않으면 일기 초안 작업은 등록되지 않는다. 그 상태로 작업자를 띄우면 서버가 넣은 초안 작업은 "모르는 종류"로 실패하다 버려진다.
+// 주지 않으면 그 두 작업은 등록되지 않는다. 그 상태로 작업자를 띄우면 서버가 넣은 작업은 "모르는 종류"로 실패하다 버려진다.
 // 언어 모델을 아직 붙이지 않은 실행을 위해 남겨 둔 길이고, 그렇게 떴다는 것은 경고 로그로 남는다.
 func WithAnalysisModel(llm ai.LLM) WorkerOption {
 	return func(s *workerSettings) { s.analysis = llm }

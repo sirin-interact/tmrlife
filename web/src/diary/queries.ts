@@ -2,6 +2,7 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 
 import { deleteDay, fetchDiary, fetchDiaryMonth, saveDiary, searchDiaries } from '@/api/diaries';
 import type { RecordDate } from '@/api/types';
+import { invalidateSignalViews } from '@/signals/keys';
 
 // 일기에 관한 조회는 모두 'diaries'로 시작한다. 일기가 바뀌면 이 앞머리로 한꺼번에 낡은 것으로 표시한다.
 const DIARIES = 'diaries';
@@ -61,6 +62,8 @@ export function useDeleteDay(date: RecordDate) {
       // 지운 날의 글을 메모리에 남겨 두지 않는다.
       queryClient.removeQueries({ queryKey: diaryQueryOptions(date).queryKey });
       void queryClient.invalidateQueries({ queryKey: [DIARIES] });
+      // 그날의 대화와 신호도 함께 지워졌다. 추세와 근거 화면이 없는 기록을 계속 보여 주지 않게 한다.
+      invalidateSignalViews(queryClient);
     },
   });
 }

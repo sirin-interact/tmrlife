@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/sirin-interact/tmrlife/server/internal/clock"
+	"github.com/sirin-interact/tmrlife/server/internal/core/params"
 	"github.com/sirin-interact/tmrlife/server/internal/httpserver"
 	"github.com/sirin-interact/tmrlife/server/internal/phrases"
 	"github.com/sirin-interact/tmrlife/server/internal/sealing"
@@ -57,6 +58,9 @@ type Options struct {
 	// Store와 Sealers는 일기 경로가 기록을 읽고 쓰는 데 쓴다.
 	Store   *store.Store
 	Sealers *sealing.Sealers
+	// Params가 빈 값이면 params.Default다. 추세 화면과 내부 확인 화면이 계산 코어에 넘기는 조정 값이고,
+	// 대화 엔진이 관문의 판정에 쓰는 값과 같아야 한다. 둘이 어긋나면 같은 기록에서 다른 숫자가 나온다.
+	Params params.Params
 	// Conversation이 있으면 대화 소켓을 ConversationPath에 붙인다.
 	// 없으면 그 경로는 열리지 않는다. 언어 모델을 붙이지 않은 실행과 REST만 보는 시험을 위해 남겨 둔 길이다.
 	Conversation *Conversation
@@ -147,6 +151,15 @@ func Register(e *echo.Echo, opts Options) (*echo.Group, error) {
 		requestTimeout = DefaultRequestTimeout
 	}
 
+	calculationParams := opts.Params
+	if calculationParams == (params.Params{}) {
+		calculationParams = params.Default()
+	}
+	// 틀린 조정 값으로는 첫 요청이 아니라 뜰 때 실패한다. 추세 화면이 500으로만 답하는 서버를 띄우지 않는다.
+	if err := calculationParams.Validate(); err != nil {
+		return nil, fmt.Errorf("api: calculation params: %w", err)
+	}
+
 	cookies, err := newSessionCookies(opts.Cookie)
 	if err != nil {
 		return nil, err
@@ -204,9 +217,13 @@ func Register(e *echo.Echo, opts Options) (*echo.Group, error) {
 
 	handler := NewStrictHandler(
 		&handlers{
-			auth:        opts.Auth,
-			settings:    opts.Settings,
-			diaries:     &diaryService{store: opts.Store, sealers: opts.Sealers, clock: opts.Clock},
+			auth:     opts.Auth,
+			settings: opts.Settings,
+			diaries:  &diaryService{store: opts.Store, sealers: opts.Sealers, clock: opts.Clock},
+			signals: &signalService{
+				store: opts.Store, sealers: opts.Sealers, clock: opts.Clock,
+				logger: opts.Logger, params: calculationParams,
+			},
 			phrases:     catalogue,
 			cookies:     cookies,
 			authTimeout: authTimeout,

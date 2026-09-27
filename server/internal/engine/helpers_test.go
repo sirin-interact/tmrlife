@@ -20,6 +20,7 @@ import (
 	"github.com/sirin-interact/tmrlife/server/internal/ai"
 	"github.com/sirin-interact/tmrlife/server/internal/ai/fake"
 	"github.com/sirin-interact/tmrlife/server/internal/ai/prompts"
+	"github.com/sirin-interact/tmrlife/server/internal/analysis"
 	"github.com/sirin-interact/tmrlife/server/internal/clock"
 	"github.com/sirin-interact/tmrlife/server/internal/core/crisis"
 	"github.com/sirin-interact/tmrlife/server/internal/crypto"
@@ -164,18 +165,19 @@ func (r *recorder) reset() {
 }
 
 type fixture struct {
-	t       *testing.T
-	pool    *pgxpool.Pool
-	store   *store.Store
-	sealers *sealing.Sealers
-	clock   *clock.Fake
-	talk    *fake.LLM
-	judge   *fake.LLM
-	logs    *syncBuffer
-	logger  *slog.Logger
-	engine  *engine.Engine
-	sink    *recorder
-	diary   *fakeEnqueuer
+	t        *testing.T
+	pool     *pgxpool.Pool
+	store    *store.Store
+	sealers  *sealing.Sealers
+	clock    *clock.Fake
+	talk     *fake.LLM
+	judge    *fake.LLM
+	logs     *syncBuffer
+	logger   *slog.Logger
+	engine   *engine.Engine
+	sink     *recorder
+	diary    *fakeEnqueuer
+	analysis *fakeAnalysisEnqueuer
 
 	userID uuid.UUID
 	sealer *crypto.Sealer
@@ -217,6 +219,41 @@ func (f *fakeEnqueuer) calls() []diaryArgs {
 	return append([]diaryArgs(nil), f.args...)
 }
 
+// fakeAnalysisEnqueuer는 신호 추출 작업이 등록되었는지만 센다.
+// 트랜잭션의 쿼리까지 받는지도 함께 본다. 추출 쪽은 그 쿼리로 대화의 분석 상태를 적기 때문에,
+// 쿼리 없이 불리면 "pending인데 작업이 없는" 대화가 생긴다.
+type fakeAnalysisEnqueuer struct {
+	mu   sync.Mutex
+	args []analysisArgs
+	err  error
+}
+
+type analysisArgs struct {
+	userID         uuid.UUID
+	conversationID uuid.UUID
+}
+
+func (f *fakeAnalysisEnqueuer) EnqueueTx(
+	_ context.Context, tx pgx.Tx, q *db.Queries, args analysis.ExtractArgs,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
+	if tx == nil || q == nil {
+		panic("신호 추출 작업은 대화를 끝내는 트랜잭션 안에서 등록돼야 한다")
+	}
+	f.args = append(f.args, analysisArgs{userID: args.UserID, conversationID: args.ConversationID})
+	return nil
+}
+
+func (f *fakeAnalysisEnqueuer) calls() []analysisArgs {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]analysisArgs(nil), f.args...)
+}
+
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	pool := testdb.New(t)
@@ -240,18 +277,19 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, err)
 
 	f := &fixture{
-		t:       t,
-		pool:    pool,
-		store:   st,
-		sealers: sealers,
-		clock:   clock.NewFake(startTime),
-		talk:    fake.New(conversationModel),
-		judge:   fake.New(gateModel),
-		logs:    &syncBuffer{},
-		sink:    &recorder{},
-		diary:   &fakeEnqueuer{},
-		userID:  userID,
-		sealer:  key.Sealer,
+		t:        t,
+		pool:     pool,
+		store:    st,
+		sealers:  sealers,
+		clock:    clock.NewFake(startTime),
+		talk:     fake.New(conversationModel),
+		judge:    fake.New(gateModel),
+		logs:     &syncBuffer{},
+		sink:     &recorder{},
+		diary:    &fakeEnqueuer{},
+		analysis: &fakeAnalysisEnqueuer{},
+		userID:   userID,
+		sealer:   key.Sealer,
 	}
 	// 운영과 같은 핸들러에, 가장 낮은 수준까지 모두 남긴다.
 	f.logger = logging.New(f.logs, slog.LevelDebug)
@@ -284,14 +322,15 @@ func (f *fixture) newEngine(adjust func(*engine.Options)) *engine.Engine {
 	require.NoError(f.t, err)
 
 	opts := engine.Options{
-		Store:   f.store,
-		Sealers: f.sealers,
-		Gate:    detector,
-		Reply:   generator,
-		Phrases: catalogue,
-		Diary:   f.diary,
-		Clock:   f.clock,
-		Logger:  f.logger,
+		Store:    f.store,
+		Sealers:  f.sealers,
+		Gate:     detector,
+		Reply:    generator,
+		Phrases:  catalogue,
+		Diary:    f.diary,
+		Analysis: f.analysis,
+		Clock:    f.clock,
+		Logger:   f.logger,
 	}
 	if adjust != nil {
 		adjust(&opts)

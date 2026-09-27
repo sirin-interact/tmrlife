@@ -257,12 +257,19 @@ func (d *Deps) WorkerOptions(ctx context.Context, opts ...WorkerOption) (queue.W
 	if err != nil {
 		return queue.WorkerOptions{}, err
 	}
+	signalExtract, extractsSignals, err := d.newAnalysisWorker(settings)
+	if err != nil {
+		return queue.WorkerOptions{}, err
+	}
 	sweepConversations, err := d.newSweepWorker()
 	if err != nil {
 		return queue.WorkerOptions{}, err
 	}
 	if !draftsDiaries {
 		d.Logger.LogAttrs(ctx, slog.LevelWarn, "diary draft worker is not registered: no analysis model was given")
+	}
+	if !extractsSignals {
+		d.Logger.LogAttrs(ctx, slog.LevelWarn, "signal extraction worker is not registered: no analysis model was given")
 	}
 	return queue.WorkerOptions{
 		Register: func(workers *river.Workers) error {
@@ -272,10 +279,15 @@ func (d *Deps) WorkerOptions(ctx context.Context, opts ...WorkerOption) (queue.W
 			if err := river.AddWorkerSafely(workers, sweepConversations); err != nil {
 				return err
 			}
-			if !draftsDiaries {
+			if draftsDiaries {
+				if err := river.AddWorkerSafely(workers, diaryDrafts); err != nil {
+					return err
+				}
+			}
+			if !extractsSignals {
 				return nil
 			}
-			return river.AddWorkerSafely(workers, diaryDrafts)
+			return river.AddWorkerSafely(workers, signalExtract)
 		},
 		PeriodicJobs: []*river.PeriodicJob{
 			auth.SessionCleanupPeriodicJob(),

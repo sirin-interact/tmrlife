@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sirin-interact/tmrlife/server/internal/core/signal"
 	"github.com/sirin-interact/tmrlife/server/internal/recorddate"
 	"github.com/sirin-interact/tmrlife/server/internal/store"
 	"github.com/sirin-interact/tmrlife/server/internal/store/db"
@@ -468,6 +469,17 @@ func TestEnumConstantsMatchTheSchema(t *testing.T) {
 		{"conversations_end_reason_check", []string{store.EndReasonUser, store.EndReasonIdle, store.EndReasonCrisis, store.EndReasonError}},
 		{"conversations_processing_status_check", []string{
 			store.ProcessingNone, store.ProcessingPending, store.ProcessingRunning, store.ProcessingDone, store.ProcessingFailed,
+		}},
+		{"conversations_analysis_status_check", []string{
+			store.AnalysisNone, store.AnalysisPending, store.AnalysisRunning, store.AnalysisDone, store.AnalysisFailed,
+		}},
+		// 신호의 항목, 판단, 명시성은 계산 코어가 식별자를 정한다. 코어와 스키마가 어긋나면 저장은 되는데 계산이 읽지 못한다.
+		{"signals_item_check", itemIdentifiers()},
+		{"signals_status_check", []string{
+			signal.Observed.String(), signal.NotObserved.String(), signal.NotMentioned.String(),
+		}},
+		{"signals_explicitness_check", []string{
+			signal.Direct.String(), signal.Indirect.String(), signal.None.String(),
 		}},
 		{"utterances_speaker_check", []string{store.SpeakerUser, store.SpeakerAI}},
 		{"utterances_modality_check", []string{store.ModeVoice, store.ModeChat}},

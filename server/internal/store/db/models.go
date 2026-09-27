@@ -34,6 +34,7 @@ type Conversation struct {
 	CreatedAt         time.Time
 	CheckState        string
 	CrisisSpokenStage int16
+	AnalysisStatus    string
 }
 
 type Day struct {

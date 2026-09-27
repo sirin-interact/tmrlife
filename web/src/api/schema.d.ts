@@ -200,6 +200,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 최근 2주의 변화 추세
+         * @description 추세 화면이 그대로 그릴 수 있는 점 달력이다. 줄은 기분, 수면, 에너지 셋이고 칸은 창 안의 날짜마다 하나다.
+         *     화면은 이 응답으로 셈을 하지 않는다. 일수와 비교 결과는 모두 서버가 계산해서 보낸다.
+         *     같은 기록을 화면이 따로 세면 화면에 보이는 숫자와 서버가 판단에 쓴 숫자가 어긋날 수 있다.
+         *
+         *     `as_of`가 이 값을 계산한 기준일이다. 대화가 진행 중인 오늘은 신호가 아직 없을 수 있어서,
+         *     오늘의 기록이 없으면 어제를 기준일로 삼는다. 오늘 한 대화는 분석이 끝난 뒤에 이 화면에 나타난다.
+         *
+         *     점수와 개입 단계는 여기에 담지 않는다. 사용자 화면에는 그 숫자를 보여주지 않는다.
+         */
+        get: operations["getTrend"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/days/{date}/signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 기록 날짜. `YYYY-MM-DD` 꼴이다 */
+                date: components["parameters"]["RecordDate"];
+            };
+            cookie?: never;
+        };
+        /**
+         * 하루의 마음 신호와 그 근거
+         * @description 그날 여덟 항목을 어떻게 보았는지와, 그렇게 본 근거가 된 사용자의 말이다.
+         *
+         *     `analysed`가 거짓이면 그날은 아직 분석이 끝나지 않았거나 대화하지 않은 날이고 `items`는 비어 있다.
+         *     대화가 막 끝나 분석이 도는 중일 때도 그렇다. 참이면 `items`는 언급이 없었던 항목까지 여덟 개다.
+         *
+         *     하루에 대화를 여러 번 했으면 항목마다 `rows`가 여러 개다. `status`와 `explicitness`는 그날 그 항목의
+         *     판단으로, 취소한 행을 뺀 뒤에 합친 값이다. 취소한 행도 `rows`에는 남아 `cancelled`가 참으로 온다.
+         */
+        get: operations["getDaySignals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/signals/{signalId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 신호 판단 하나를 가리키는 ID. 하루의 신호 목록에서 온다 */
+                signalId: components["parameters"]["SignalID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 이 신호는 아니라고 표시한다
+         * @description 그 판단을 계산에서 뺀다. 행은 지우지 않는다. 추출이 그 사람의 표현을 과하게 읽고 있지 않은지 돌아보는 데 쓴다.
+         *     추세와 추정은 남은 기록으로 다시 계산된다.
+         *
+         *     같은 버튼을 두 번 눌러도 결과가 같다. 이미 취소한 신호에 다시 불러도 200이다.
+         *     응답은 그 신호가 속한 하루의 신호 전부다. 항목의 합친 판단이 함께 바뀌므로 화면이 다시 읽지 않아도 된다.
+         *     없는 신호이거나 남의 신호면 `404 not_found`다.
+         */
+        post: operations["cancelSignal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/signals/{signalId}/uncancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 신호 판단 하나를 가리키는 ID. 하루의 신호 목록에서 온다 */
+                signalId: components["parameters"]["SignalID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 취소를 되돌린다
+         * @description 취소한 신호를 다시 계산에 넣는다. 취소한 적이 없는 신호에 불러도 200이다.
+         *     응답과 오류는 취소와 같다.
+         */
+        post: operations["uncancelSignal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 계산이 그 값에 이른 과정 전부
+         * @description 추정 점수, 신뢰도, 개인 기준선, 변화 탐지, 개입 단계를 중간값까지 그대로 돌려준다.
+         *     만드는 사람과 심사하는 사람이 "왜 이 값인가"를 눈으로 따라갈 수 있게 두는 화면이다.
+         *
+         *     **시연 계정(`is_demo`)이나 관리자 계정이 아니면 `403 forbidden`이다.**
+         *     추정 점수와 개입 단계는 사용자에게 숫자로 보여주지 않는다. 힘든 사람에게 점수와 경고는 도움보다 상처가 되기 쉽고,
+         *     이 값은 정식 자가 점검의 결과가 아니라 대화 기록에서 추정한 값이기 때문이다.
+         *
+         *     `as_of`가 기준일이다. 추세와 같은 규칙으로 고른다. `params`는 이 계산에 쓴 조정 값이라,
+         *     누적값 옆에 한계값을 그리는 것처럼 결과를 읽는 데 필요한 경계를 함께 볼 수 있다.
+         */
+        get: operations["getInternalReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/resources": {
         parameters: {
             query?: never;
@@ -383,6 +519,443 @@ export interface components {
         ResourceList: {
             /** @description 급한 곳이 앞에 온다 */
             items: components["schemas"]["Resource"][];
+        };
+        /**
+         * @description 점수에 쓰는 여덟 항목. 자해나 자살에 관한 표현은 항목이 아니다. 그것은 위기 관문이 따로 맡는다.
+         *     `interest` 흥미와 즐거움이 줄어듦, `mood` 우울하거나 희망이 없음, `sleep` 잠, `fatigue` 피곤하고 기운이 없음,
+         *     `appetite` 입맛, `self_blame` 자신을 탓하거나 쓸모없다고 느낌, `concentration` 집중,
+         *     `psychomotor` 말과 움직임이 느려지거나 안절부절못함.
+         * @enum {string}
+         */
+        SignalItem: "interest" | "mood" | "sleep" | "fatigue" | "appetite" | "self_blame" | "concentration" | "psychomotor";
+        /**
+         * @description 한 항목에 대한 판단. `observed` 그 신호가 있었다, `not_observed` 이야기가 나왔고 괜찮았다,
+         *     `not_mentioned` 이야기가 없었다. 언급 없음은 "없었다"가 아니라 "모른다"에 가깝다.
+         * @enum {string}
+         */
+        SignalStatus: "observed" | "not_observed" | "not_mentioned";
+        /**
+         * @description 판단의 근거가 얼마나 분명했는지. `direct` 사용자가 직접 말했다, `indirect` 사용자의 말에서 미루어 짐작했다,
+         *     `none` 근거가 없다(언급 없음인 판단에만 붙는다).
+         * @enum {string}
+         */
+        SignalExplicitness: "direct" | "indirect" | "none";
+        /** @description 대화한 날 가운데 며칠에서 관찰됐는지. 화면이 "9일 중 3일"처럼 일수로 말할 수 있게 비율이 아니라 일수 둘로 준다 */
+        SignalRate: {
+            observed_days: number;
+            /** @description 견준 기간에서 대화한 날 수 */
+            days: number;
+        };
+        /**
+         * @description 추세 화면의 줄. `mood` 기분(흥미 저하와 우울감 가운데 하나라도 해당하면 찍힌다), `sleep` 수면, `energy` 에너지.
+         *     여덟 항목을 다 그리지 않고, 사용자가 자기 말로 떠올리기 쉬운 셋만 줄로 보여준다. 나머지는 근거 화면에서 본다.
+         * @enum {string}
+         */
+        TrendRowKey: "mood" | "sleep" | "energy";
+        /**
+         * @description 점 달력 한 칸의 표시. `no_conversation` 대화하지 않은 날(빈칸), `not_mentioned` 대화는 했지만 그 줄의 이야기가 없었던 날(작은 점),
+         *     `not_observed` 이야기가 나왔고 괜찮았던 날(빈 점), `observed` 그 줄의 신호가 관찰된 날(찬 점).
+         *     분석이 아직 끝나지 않은 날은 대화하지 않은 날과 같은 표시다. 분석이 끝나면 그 칸이 채워진다.
+         * @enum {string}
+         */
+        TrendMark: "no_conversation" | "not_mentioned" | "not_observed" | "observed";
+        /**
+         * @description 최근 기간의 빈도를 평소와 견준 결과. `more_often` 평소보다 잦음, `similar` 평소와 비슷함, `less_often` 평소보다 드묾,
+         *     `none` 견줄 수 없음(평소가 아직 없거나 기록이 모자라다). `none`이면 화면에 일수만 보여주고 평소와 견주는 말은 붙이지 않는다.
+         * @enum {string}
+         */
+        TrendComparison: "none" | "less_often" | "similar" | "more_often";
+        /** @description 점 달력의 한 칸 */
+        TrendCell: {
+            date: components["schemas"]["RecordDate"];
+            mark: components["schemas"]["TrendMark"];
+        };
+        /**
+         * @description 점 달력의 한 줄. "14일 중 7일, 평소보다 잦음"이라는 말을 만드는 데 필요한 값이 모두 있다.
+         *     화면은 나누거나 세지 않고 이 값을 그대로 쓴다.
+         */
+        TrendRow: {
+            row: components["schemas"]["TrendRowKey"];
+            /** @description 창의 첫날부터 기준일까지 날짜마다 한 칸. 대화하지 않은 날도 들어 있다 */
+            cells: components["schemas"]["TrendCell"][];
+            /** @description 최근 기간의 빈도. `days`는 창 안에서 대화한 일수이고 줄마다 같다 */
+            window: components["schemas"]["SignalRate"];
+            /**
+             * @description 평소의 빈도. 개인 기준선이 아직 잡히지 않았으면 null이다.
+             *     모으는 중인 값은 아직 평소가 아니므로 내보내지 않는다.
+             */
+            usual?: components["schemas"]["SignalRate"] | null;
+            comparison: components["schemas"]["TrendComparison"];
+        };
+        /**
+         * @description 추세 화면이 그리는 점 달력 전부. 줄은 언제나 기분, 수면, 에너지 셋이고 그 순서대로 온다.
+         *     추정 점수와 개입 단계는 담기지 않는다.
+         */
+        Trend: {
+            /**
+             * @description 이 값을 계산한 기준일이고 달력의 마지막 날이다.
+             *     오늘의 분석이 아직 없으면 어제가 기준일이 된다. 오늘 한 대화는 분석이 끝난 뒤에 이 화면에 나타난다.
+             */
+            as_of: components["schemas"]["RecordDate"];
+            /** @description 달력의 첫날 */
+            from: components["schemas"]["RecordDate"];
+            /** @description 달력의 마지막 날. `as_of`와 같다 */
+            to: components["schemas"]["RecordDate"];
+            /** @description 창 안에서 대화하고 분석이 끝난 날의 수 */
+            conversation_days: number;
+            /**
+             * @description 창 안에서 대화한 날이 모자라 추정을 하지 않았다는 뜻이다.
+             *     참이면 화면은 점 달력만 보여주고 평소와 견주는 말은 붙이지 않는다. 며칠 더 기록하면 된다는 안내를 그 자리에 둔다.
+             */
+            insufficient_records: boolean;
+            /**
+             * @description 그 사람의 평소가 아직 정해지지 않았다는 뜻이다. 참이면 모든 줄의 `usual`이 null이고 `comparison`은 `none`이다.
+             *     평소는 첫 대화 날부터 얼마 동안의 기록으로 잡고, 그 기간이 지나야 정해진다.
+             */
+            baseline_pending: boolean;
+            /** @description 기분, 수면, 에너지 순 */
+            rows: components["schemas"]["TrendRow"][];
+        };
+        /** @description 대화 하나에서 항목 하나에 대해 나온 판단과 그 근거 */
+        SignalEvidence: {
+            /**
+             * Format: uuid
+             * @description 취소하거나 되돌릴 때 쓰는 ID
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description 그 판단이 나온 대화. 하루에 여러 번 대화했을 때 어느 대화에서 나왔는지 보여주는 데 쓴다
+             */
+            conversation_id: string;
+            status: components["schemas"]["SignalStatus"];
+            explicitness: components["schemas"]["SignalExplicitness"];
+            /**
+             * @description 판단의 근거가 된 사용자의 말을 글자 그대로 옮긴 것이다. 언급 없음인 판단은 null이다.
+             *     AI가 지어낸 요약이 아니라 사용자가 한 말이어야 한다. 그래서 화면은 이 글을 그대로 보여준다.
+             */
+            evidence: string | null;
+            /** @description 근거가 어느 발화에서 왔는지(대화 안의 순번). 가리키는 발화가 없으면 null이다 */
+            utterance_seq?: number | null;
+            /** @description 사용자가 "이건 아니에요"로 취소했는지. 참이면 계산에서 빠져 있다 */
+            cancelled: boolean;
+        };
+        /**
+         * @description 하루의 한 항목이다. `status`와 `explicitness`는 그날 그 항목의 판단으로,
+         *     취소한 행을 뺀 뒤에 합친 값이다. 하루에 한 번이라도 관찰되면 관찰됨이고, 근거가 더 분명한 쪽의 명시성을 쓴다.
+         */
+        DaySignalItem: {
+            item: components["schemas"]["SignalItem"];
+            status: components["schemas"]["SignalStatus"];
+            explicitness: components["schemas"]["SignalExplicitness"];
+            /** @description 그 항목에 대해 나온 판단. 하루에 대화를 여러 번 했으면 대화마다 하나씩이다 */
+            rows: components["schemas"]["SignalEvidence"][];
+        };
+        /** @description 하루의 마음 신호 전부 */
+        DaySignals: {
+            date: components["schemas"]["RecordDate"];
+            /**
+             * @description 그날 분석이 끝난 대화가 있는지. 거짓이면 `items`는 비어 있다.
+             *     대화하지 않은 날, 분석이 도는 중인 날, 분석을 꺼 둔 날이 모두 거짓이다.
+             */
+            analysed: boolean;
+            /** @description `analysed`가 참이면 여덟 항목이 정해진 순서로 온다. 언급이 없었던 항목도 빠지지 않는다 */
+            items: components["schemas"]["DaySignalItem"][];
+        };
+        /**
+         * @description 추정 점수(0~24)가 드는 구간. 여덟 항목 척도에서 널리 쓰는 구간을 그대로 따른다.
+         *     `none`은 기록이 모자라 점수를 내지 않았다는 뜻이다. 0점과는 다르다.
+         * @enum {string}
+         */
+        ScoreBand: "none" | "minimal" | "mild" | "moderate" | "moderately_severe" | "severe";
+        /**
+         * @description 신뢰도의 구간. `medium` 이상이어야 개입 단계를 올린다. 기록 부족도 `low`다.
+         * @enum {string}
+         */
+        ConfidenceLevel: "low" | "medium" | "high";
+        /**
+         * @description 신뢰도를 이루는 세 요소. `record_coverage` 기록 충실도, `item_coverage` 항목 충족도,
+         *     `explicitness` 근거 명시성. `none`은 최종 값을 계산하지 않아 가리킬 요소가 없다는 뜻이다.
+         * @enum {string}
+         */
+        ConfidenceComponent: "none" | "record_coverage" | "item_coverage" | "explicitness";
+        /**
+         * @description 그날의 개입 단계를 그 값으로 만든 조건. 단계를 실제로 움직인 조건만 적는다.
+         *     `score` 점수가 올렸다, `change_detected` 점수로는 0단계인데 변화 감지 상태여서 1단계가 되었다,
+         *     `sustained` 2단계 이상이 정해진 일수째 이어져 3단계가 되었다,
+         *     `held_no_record_today` 그날 대화한 기록이 없어 오르지 못했다,
+         *     `held_one_step_per_day` 하루에 한 단계만 올랐다,
+         *     `held_low_confidence` 신뢰도가 낮아 오르지 못했다,
+         *     `held_insufficient_records` 기록 부족이어서 오르지 못했다,
+         *     `carried_insufficient_records` 기록 부족이어서 전날의 단계를 그대로 이어 갔다,
+         *     `no_recent_records` 창 안에 대화한 날이 하나도 없어 0단계로 돌아갔다.
+         * @enum {string}
+         */
+        StageReason: "score" | "change_detected" | "sustained" | "held_no_record_today" | "held_one_step_per_day" | "held_low_confidence" | "held_insufficient_records" | "carried_insufficient_records" | "no_recent_records";
+        /** @description 센 값 그대로의 분수다. 약분하지 않는다. "14일 중 7일"처럼 센 값을 그대로 보여줄 수 있게 소수로 바꾸지 않는다 */
+        ReviewRatio: {
+            num: number;
+            den: number;
+        };
+        /**
+         * @description 신호 행에 남은 추출기 표시 하나와 그 표시로 남은 행의 수다. 표시는 지시문의 판과 실제로 답한 모델을 담는다.
+         *     추출 방식을 바꾼 앞뒤를 견주는 데도 쓰고, 정해 둔 답으로 채운 행을 가려내는 데도 쓴다.
+         */
+        ReviewExtractor: {
+            /** @description 신호 행에 저장된 표시. 지시문의 판과 모델 이름이다 */
+            version: string;
+            /** @description 그 표시로 남은 신호 행의 수. 취소한 행도 센다 */
+            rows: number;
+            /**
+             * Format: date-time
+             * @description 그 표시로 남은 가장 최근 행의 시각
+             */
+            last_at: string;
+        };
+        /** @description 항목 하나가 어떻게 점수가 되었는지. 중간값을 버리지 않는다 */
+        ReviewScoreItem: {
+            item: components["schemas"]["SignalItem"];
+            /** @description 창 안에서 그 항목이 관찰된 일수. 기록 부족이어도 센다 */
+            observed_days: number;
+            /** @description 관찰된 일수를 창의 길이에 맞춰 환산한 일수(창의 길이 × 관찰 일수 ÷ 대화한 일수). 기록 부족이면 0이다 */
+            converted_days: number;
+            /** @description 항목 점수(0~3). 환산 일수의 경계에서 나온다. 기록 부족이면 0이다 */
+            points: number;
+        };
+        /** @description 기준일의 추정 점수와 그 값이 나온 과정 */
+        ReviewScore: {
+            window_from: components["schemas"]["RecordDate"];
+            window_to: components["schemas"]["RecordDate"];
+            conversation_days: number;
+            /**
+             * @description 대화한 날이 모자라 점수를 내지 않았다는 뜻이다. 0점("충분히 들었고 신호가 없었다")과는 다른 상태다.
+             *     참이면 `total`, `band`, 항목별 환산 일수와 점수는 구하지 않은 값이므로 읽지 않는다.
+             */
+            insufficient: boolean;
+            /** @description 여덟 항목이 정해진 순서로 온다 */
+            items: components["schemas"]["ReviewScoreItem"][];
+            /** @description 여덟 항목 점수의 합(0~24) */
+            total: number;
+            band: components["schemas"]["ScoreBand"];
+        };
+        /**
+         * @description 기준일의 신뢰도와 그 값이 나온 과정. 최종 값은 세 요소의 평균이 아니라 가장 작은 값이다.
+         *     평균을 내면 한 요소가 아주 나빠도 다른 요소에 묻힌다.
+         */
+        ReviewConfidence: {
+            conversation_days: number;
+            /** @description 창 안에서 한 번이라도 이야기가 나온 항목의 수 */
+            mentioned_items: number;
+            /** @description 창 안에서 한 번도 이야기가 나오지 않은 항목. 다음 대화에서 자연스럽게 물어볼 항목을 고르는 데 쓴다 */
+            missing_items: components["schemas"]["SignalItem"][];
+            /** @description 창 안의 관찰됨 판단 수. 하루의 항목 하나가 판단 하나다 */
+            observed_judgements: number;
+            /** @description 그 가운데 사용자가 직접 말한 것에 근거한 판단 수 */
+            direct_judgements: number;
+            /** @description 기록 충실도. 대화한 일수 ÷ 창의 길이 */
+            record_coverage: components["schemas"]["ReviewRatio"];
+            /** @description 항목 충족도. 이야기가 나온 항목 수 ÷ 여덟 */
+            item_coverage: components["schemas"]["ReviewRatio"];
+            /**
+             * @description 근거 명시성. 직접 언급 판단 수 ÷ 관찰됨 판단 수.
+             *     관찰됨이 하나도 없으면 1/1이다. 따질 판단이 없는 것이지 근거가 흐린 것이 아니다.
+             */
+            explicitness: components["schemas"]["ReviewRatio"];
+            /** @description 기록 부족이라는 뜻이다. 참이면 `value`는 0/0이고 `limiting`은 `none`, `level`은 `low`다 */
+            insufficient: boolean;
+            /** @description 최종 값. 세 요소 가운데 가장 작은 값을 센 값 그대로 담는다 */
+            value: components["schemas"]["ReviewRatio"];
+            limiting: components["schemas"]["ConfidenceComponent"];
+            level: components["schemas"]["ConfidenceLevel"];
+        };
+        /**
+         * @description 그 사람의 평소. 첫 대화 날부터 얼마 동안의 기록으로 잡고 한번 잡히면 고정한다.
+         *     기간 안의 날을 사용자가 지웠을 때만 다시 정해진다. `established`가 거짓인 동안의 값은 "지금까지 모인 값"이고 평소로 쓰면 안 된다.
+         */
+        ReviewBaseline: {
+            /** @description 기준일에 평소가 잡혀 있는지. 기간의 마지막 날이 지나야 참이 된다 */
+            established: boolean;
+            /** @description 기간의 첫날, 곧 첫 대화 날. 대화한 날이 없으면 null이다 */
+            start?: components["schemas"]["RecordDate"] | null;
+            /** @description 기간의 마지막 날. 기준일까지의 기록으로 아직 정할 수 없으면 null이다 */
+            end?: components["schemas"]["RecordDate"] | null;
+            /** @description 첫 기간 안에 대화한 날이 모자라서 기간을 늘렸는지 */
+            extended: boolean;
+            /** @description 평소를 정하는 데 쓴 대화한 날 수 */
+            days: number;
+            /** @description 그 날들의 "그날 관찰된 항목 수"를 모두 더한 값. `mu`의 분자다 */
+            observed_total: number;
+            /**
+             * Format: double
+             * @description 평소의 하루 평균 신호 수. `observed_total` ÷ `days`이고 `days`가 0이면 0이다
+             */
+            mu: number;
+            /** @description 항목별 관찰 비율. 여덟 항목이 정해진 순서로 온다 */
+            item_rates: components["schemas"]["ReviewItemRate"][];
+            /** @description 추세 화면의 줄별 관찰 비율. 기분, 수면, 에너지 순 */
+            trend_rates: components["schemas"]["ReviewTrendRate"][];
+        };
+        ReviewItemRate: {
+            item: components["schemas"]["SignalItem"];
+            rate: components["schemas"]["SignalRate"];
+        };
+        ReviewTrendRate: {
+            row: components["schemas"]["TrendRowKey"];
+            rate: components["schemas"]["SignalRate"];
+        };
+        /** @description 변화 탐지가 누적한 날 하루 */
+        ReviewChangePoint: {
+            date: components["schemas"]["RecordDate"];
+            /** @description 그날 관찰된 항목 수 */
+            observed: number;
+            /**
+             * Format: double
+             * @description 그날 누적값에 더한 값(관찰된 항목 수 − 평소의 하루 평균 − 허용 여유). 상한에 걸렸으면 상한값이다
+             */
+            step: number;
+            /** @description 하루 증가량의 상한에 걸려 `step`이 줄었는지 */
+            capped: boolean;
+            /** @description 누적값이 천장에 걸려 그날의 증가량이 다 쌓이지 못했는지 */
+            at_ceiling: boolean;
+            /**
+             * Format: double
+             * @description 그날까지의 누적값. 보여주기 위한 값이다. 감지 여부는 이 값을 한계값과 견주지 말고 `detected`에서 읽는다
+             */
+            s: number;
+            detected: boolean;
+        };
+        /**
+         * @description 평소에서 벗어난 정도를 날마다 쌓아 변화를 알아챈 흐름이다. 평소가 잡히기 전에는 돌지 않는다.
+         *     누적값이 한계값을 넘으면 감지이고, 넘은 뒤에도 0으로 되돌리지 않는다. 나아지면 줄어들어 저절로 풀린다.
+         */
+        ReviewChange: {
+            /** @description 기준일에 변화 탐지가 돌고 있는지. 평소가 잡히기 전에는 거짓이다 */
+            running: boolean;
+            /** @description 기준일에 변화 감지 상태인지 */
+            detected: boolean;
+            /**
+             * Format: double
+             * @description 기준일까지의 누적값
+             */
+            s: number;
+            /** @description 누적을 시작한 날짜, 곧 평소 기간의 마지막 날 다음 날. 평소가 잡히지 않았으면 null이다 */
+            from?: components["schemas"]["RecordDate"] | null;
+            /** @description 누적을 시작한 날부터 기준일까지 대화한 날마다 하나. 대화하지 않은 날은 없다 */
+            series: components["schemas"]["ReviewChangePoint"][];
+        };
+        /**
+         * @description 달력 날짜 하루의 개입 단계와 그 단계가 나온 과정. 대화하지 않은 날도 들어 있다.
+         *     단계는 대화한 날에만 오르고, 하루에 한 단계만 오르고, 신뢰도가 낮은 날에는 오르지 않는다.
+         */
+        ReviewStagePoint: {
+            date: components["schemas"]["RecordDate"];
+            /** @description 그날 대화하고 분석이 끝난 기록이 있는지. 단계는 이 값이 참인 날에만 오른다 */
+            has_record: boolean;
+            /** @description 그날을 기준일로 한 창 안에서 대화한 일수 */
+            conversation_days: number;
+            /** @description 기록 부족이어서 그날의 추정 점수를 내지 않았다는 뜻이다. 참이면 `score`는 읽지 않는다 */
+            insufficient: boolean;
+            /** @description 그날의 추정 점수(0~24). `insufficient`가 참이면 구하지 않은 값이다 */
+            score: number;
+            confidence: components["schemas"]["ConfidenceLevel"];
+            /** @description 그날 변화 감지 상태였는지 */
+            detected: boolean;
+            /** @description 그날의 값만으로 정한 단계(0~3). 전날과 견줘 묶거나 이어 가기 전의 값이다 */
+            raw: number;
+            /** @description 그날의 개입 단계(0~3). 0 일상, 1 회고, 2 제안, 3 권유 */
+            stage: number;
+            /** @description 단계가 오르려던 만큼 오르지 못했다는 뜻이다. 까닭은 `reasons`에 있다 */
+            held: boolean;
+            /** @description 2단계 이상이 그날까지 달력 날짜로 며칠째 이어졌는지. 2단계 미만이면 0이다 */
+            elevated_days: number;
+            /** @description 단계를 실제로 움직인 조건. 없으면 빈 배열이다 */
+            reasons: components["schemas"]["StageReason"][];
+        };
+        /**
+         * @description 첫 대화 날부터 기준일까지 하루씩 다시 돌린 개입 단계의 흐름이다.
+         *     결과를 저장해 두지 않기 때문에 사용자가 지난 하루를 지우면 그 뒤의 단계가 모두 다시 정해진다.
+         */
+        ReviewStage: {
+            /** @description 기준일의 개입 단계(0~3) */
+            stage: number;
+            /** @description 흐름의 첫날, 곧 첫 대화 날. 대화한 날이 없으면 null이다 */
+            from?: components["schemas"]["RecordDate"] | null;
+            /** @description 첫날부터 기준일까지 달력의 하루하루. 대화하지 않은 날도 들어 있다 */
+            series: components["schemas"]["ReviewStagePoint"][];
+        };
+        /**
+         * @description 이 계산에 쓴 조정 값이다. 결과를 읽을 때 함께 필요한 경계를 화면이 코드에 박아 두지 않게 한다
+         *     (누적값 옆에 한계값을 그리거나, 점수 옆에 구간의 경계를 표시할 때).
+         */
+        ReviewParams: {
+            /** @description 점수, 신뢰도, 개입 단계가 함께 보는 최근 기간의 길이(기준일 포함) */
+            window_days: number;
+            /** @description 창 안에서 대화한 날이 이보다 적으면 기록 부족이다 */
+            min_conversation_days: number;
+            /** @description 환산 일수가 이 값 이상이면 항목 점수 1, 2, 3을 준다. 세 값이 오름차순으로 온다 */
+            item_score_min_days: number[];
+            /** @description 추정 점수가 이 값 이상이면 가벼움, 중간, 다소 심함, 심함 구간이다. 네 값이 오름차순으로 온다 */
+            band_min_scores: number[];
+            /**
+             * Format: double
+             * @description 신뢰도가 이 값 미만이면 낮음이다
+             */
+            confidence_medium_min: number;
+            /**
+             * Format: double
+             * @description 신뢰도가 이 값 이상이면 높음이고, 그 사이는 보통이다
+             */
+            confidence_high_min: number;
+            /** @description 첫 대화 날부터(첫날 포함) 평소로 삼는 기간 */
+            baseline_window_days: number;
+            /** @description 평소에 필요한 대화 일수. 기간 안에 모자라면 이만큼 찰 때까지 기간을 늘린다 */
+            baseline_min_conversation_days: number;
+            /**
+             * Format: double
+             * @description 허용 여유. 평소보다 이만큼 많은 것까지는 흔한 기복으로 보고 쌓지 않는다
+             */
+            cusum_k: number;
+            /**
+             * Format: double
+             * @description 한계값. 누적값이 이 값을 넘으면(같으면 아니다) 변화 감지다
+             */
+            cusum_h: number;
+            /**
+             * Format: double
+             * @description 하루에 늘 수 있는 누적값의 상한. 0이면 상한이 없다
+             */
+            cusum_max_step: number;
+            /**
+             * Format: double
+             * @description 누적값의 천장을 한계값의 몇 배로 둘지. 0이면 천장이 없다
+             */
+            cusum_max_s: number;
+            /** @description 추정 점수가 이 값 이상이면 1, 2, 3단계다. 세 값이 오름차순으로 온다 */
+            stage_min_scores: number[];
+            /** @description 2단계 이상이 달력 날짜로 이 일수째 이어지는 날부터 3단계로 올린다 */
+            sustained_stage2_days: number;
+            /** @description 최근 기간의 빈도와 평소의 빈도가 이 퍼센트포인트 이상 벌어지면 "잦음"이나 "드묾"이다 */
+            trend_min_difference_percent: number;
+        };
+        /**
+         * @description 기준일 하루의 평가 전부다. 추정 점수, 신뢰도, 평소, 변화 탐지, 개입 단계가 모두 같은 기록과 같은 기준일,
+         *     같은 조정 값에서 나온 값이라 서로 앞뒤가 맞는다.
+         */
+        InternalReview: {
+            /** @description 기준일. 오늘의 분석이 아직 없으면 어제가 기준일이 된다 */
+            as_of: components["schemas"]["RecordDate"];
+            params: components["schemas"]["ReviewParams"];
+            /**
+             * @description 이 계정의 신호 행을 남긴 추출기들이다. 최근에 쓴 것이 앞에 온다. 신호 행이 없으면 빈 배열이다.
+             *     화면에 반드시 띄운다. 키 없이 띄운 서버는 낱말 표로 답하는 모델로도 여덟 항목을 채우기 때문에,
+             *     이 표시가 없으면 화면의 판단과 근거가 실제 모델이 읽은 것인지 가릴 수 없다.
+             */
+            extractors: components["schemas"]["ReviewExtractor"][];
+            score: components["schemas"]["ReviewScore"];
+            confidence: components["schemas"]["ReviewConfidence"];
+            baseline: components["schemas"]["ReviewBaseline"];
+            change: components["schemas"]["ReviewChange"];
+            stage: components["schemas"]["ReviewStage"];
         };
         /** @description 클라이언트가 대화 채널로 보내는 메시지. `type`으로 가린다 */
         WsClientMessage: components["schemas"]["WsStart"] | components["schemas"]["WsUserText"] | components["schemas"]["WsEnd"];
@@ -687,6 +1260,8 @@ export interface components {
     parameters: {
         /** @description 기록 날짜. `YYYY-MM-DD` 꼴이다 */
         RecordDate: components["schemas"]["RecordDate"];
+        /** @description 신호 판단 하나를 가리키는 ID. 하루의 신호 목록에서 온다 */
+        SignalID: string;
     };
     requestBodies: never;
     headers: {
@@ -969,6 +1544,141 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["CrossOriginRejected"];
             404: components["responses"]["NotFound"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getTrend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 점 달력. 기록이 하나도 없어도 빈 칸으로 채운 달력이 온다 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trend"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getDaySignals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 기록 날짜. `YYYY-MM-DD` 꼴이다 */
+                date: components["parameters"]["RecordDate"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 그날의 신호와 근거 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DaySignals"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    cancelSignal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 신호 판단 하나를 가리키는 ID. 하루의 신호 목록에서 온다 */
+                signalId: components["parameters"]["SignalID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 취소한 뒤 그날의 신호와 근거 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DaySignals"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["CrossOriginRejected"];
+            404: components["responses"]["NotFound"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    uncancelSignal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 신호 판단 하나를 가리키는 ID. 하루의 신호 목록에서 온다 */
+                signalId: components["parameters"]["SignalID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 되돌린 뒤 그날의 신호와 근거 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DaySignals"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["CrossOriginRejected"];
+            404: components["responses"]["NotFound"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getInternalReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 기준일 하루의 평가 전부 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalReview"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description 시연 계정도 관리자도 아니다 (`forbidden`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             default: components["responses"]["Problem"];
         };
     };

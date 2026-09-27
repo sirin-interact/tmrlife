@@ -37,6 +37,8 @@ type handlers struct {
 	settings SettingsReader
 	// diaries는 일기장 경로가 기록을 읽고 쓰는 자리다.
 	diaries *diaryService
+	// signals는 마음 신호 경로(추세, 근거, 내부 확인)가 기록을 읽고 계산 코어를 부르는 자리다.
+	signals *signalService
 	// phrases는 도움 자원 목록이 오는 곳이다. 대화 채널이 보내는 목록과 같은 자료다.
 	phrases *phrases.Catalogue
 	cookies sessionCookies

@@ -443,7 +443,10 @@ func TestSpecSecurity(t *testing.T) {
 	t.Run("로그인이 필요한 작업은 명세의 security에서 나온다", func(t *testing.T) {
 		// 기록을 읽고 고치는 경로는 모두 로그인이 필요하다. 도움 자원(listResources)만 로그인 없이 열린다.
 		assert.ElementsMatch(t,
-			[]string{"getMe", "listDiaries", "getDiary", "putDiary", "deleteDay"},
+			[]string{
+				"getMe", "listDiaries", "getDiary", "putDiary", "deleteDay",
+				"getTrend", "getDaySignals", "cancelSignal", "uncancelSignal", "getInternalReview",
+			},
 			protectedOperations(spec))
 	})
 

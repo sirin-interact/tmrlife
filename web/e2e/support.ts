@@ -118,3 +118,65 @@ export function recordDateFromUrl(url: string): string {
   if (date === undefined) throw new Error(`일기 주소가 아니다: ${new URL(url).pathname}`);
   return date;
 }
+
+// ---- 심어 둔 시연 계정 ---------------------------------------------------------------
+// 며칠에 걸친 점 달력과 시연 계정만 볼 수 있는 화면은 브라우저로 하루 만에 만들 수 없다.
+// `make e2e`(web/e2e/run.sh)가 `server seed demo`로 미리 심고 그 주소와 비밀번호를 여기로 넘겨준다.
+// 이 계정은 읽기만 한다. 기록을 바꾸는 시나리오는 저마다 새로 가입한다.
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (value === undefined || value === '') {
+    throw new Error(`${name}이 없다. 저장소 루트에서 make e2e로 돌린다.`);
+  }
+  return value;
+}
+
+export const DEMO_EMAIL = requireEnv('E2E_DEMO_EMAIL');
+export const DEMO_PASSWORD = requireEnv('E2E_DEMO_PASSWORD');
+
+/** 심어 둔 날 수. 점 달력의 창이 이 값보다 짧아야 창이 기록으로 다 차 있다. */
+export const DEMO_DAYS = Number(requireEnv('E2E_DEMO_DAYS'));
+
+/**
+ * 화면으로 로그인한다. 로그인 화면 자체를 보는 것은 auth.spec.ts가 한다.
+ *
+ * 먼저 쿠키를 비운다. 앞선 걸음에서 다른 계정으로 들어가 있으면 로그인 화면이 처음 화면으로 되돌리기 때문에,
+ * 비우지 않으면 이메일 칸을 기다리다 시간이 다 된다. 로그아웃 버튼을 누르는 길은 auth.spec.ts가 본다.
+ */
+export async function logIn(page: Page, email: string, password: string): Promise<void> {
+  await page.context().clearCookies();
+  await page.goto('/login');
+  await page.getByLabel('이메일').fill(email);
+  await page.getByLabel('비밀번호', { exact: true }).fill(password);
+  await page.getByRole('button', { name: '로그인' }).click();
+  await expect(page).toHaveURL('/');
+}
+
+// ---- 마음 신호 화면 -----------------------------------------------------------------
+
+/** 점 달력의 칸에 붙는 뜻. 화면 낭독기가 읽는 말이고, 테스트도 같은 말로 칸을 읽는다. */
+export const MARK = {
+  observed: '신호가 보인 날',
+  notObserved: '이야기가 나왔고 괜찮았던 날',
+  notMentioned: '그 이야기는 없었던 날',
+  noConversation: '대화하지 않은 날',
+} as const;
+
+export const trendCalendar = (page: Page): Locator =>
+  page.getByRole('table', { name: '날마다의 마음 신호' });
+
+/**
+ * 점 달력의 한 줄에서 날짜 칸들을 돌려준다. 창의 첫날부터 기준일까지의 순서다.
+ * 줄 이름(기분·수면·에너지)으로 찾기 때문에 열이 밀려도 다른 줄을 읽지 않는다.
+ */
+export function trendCells(page: Page, row: '기분' | '수면' | '에너지'): Locator {
+  return trendCalendar(page)
+    .getByRole('row')
+    .filter({ has: page.getByRole('rowheader', { name: row, exact: true }) })
+    .getByRole('cell');
+}
+
+/** 하루의 마음 신호 목록(근거 화면) */
+export const signalItems = (page: Page): Locator =>
+  page.getByRole('list', { name: '이 날의 마음 신호' });

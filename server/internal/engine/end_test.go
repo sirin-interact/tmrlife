@@ -41,6 +41,11 @@ func TestEnd(t *testing.T) {
 		assert.Equal(t, s.ConversationID(), calls[0].conversationID)
 		assert.Equal(t, s.DayID(), calls[0].dayID)
 		assert.Equal(t, f.userID, calls[0].userID)
+
+		extractions := f.analysis.calls()
+		require.Len(t, extractions, 1, "신호 추출 작업도 같은 트랜잭션에서 등록된다")
+		assert.Equal(t, s.ConversationID(), extractions[0].conversationID)
+		assert.Equal(t, f.userID, extractions[0].userID)
 	})
 
 	t.Run("대응 단계가 있었던 대화는 초안을 만들지 않는다", func(t *testing.T) {
@@ -60,6 +65,10 @@ func TestEnd(t *testing.T) {
 		assert.Equal(t, store.ConversationEnded, row.Status)
 		assert.Equal(t, store.ProcessingNone, row.ProcessingStatus, "초안 작업이 없으면 기다리는 상태로 두지 않는다")
 		assert.Empty(t, f.diary.calls())
+
+		// 신호는 그런 대화에서도 뽑는다. 그 하루를 비워 두면 가장 무거운 날이 "대화하지 않은 날"이 되어
+		// 점수를 나누는 일수까지 줄어든다. 까닭은 closer.end에 적혀 있다.
+		assert.Len(t, f.analysis.calls(), 1, "위기 대응이 있었던 대화에서도 신호는 뽑는다")
 	})
 
 	t.Run("두 번 끝내지 않는다", func(t *testing.T) {
@@ -70,6 +79,7 @@ func TestEnd(t *testing.T) {
 		require.NoError(t, f.engine.End(t.Context(), s, store.EndReasonUser))
 		require.ErrorIs(t, f.engine.End(t.Context(), s, store.EndReasonUser), engine.ErrConversationEnded)
 		assert.Len(t, f.diary.calls(), 1, "작업이 두 번 등록되지 않는다")
+		assert.Len(t, f.analysis.calls(), 1, "작업이 두 번 등록되지 않는다")
 	})
 
 	t.Run("끝난 대화에는 말을 더할 수 없다", func(t *testing.T) {
@@ -104,6 +114,7 @@ func TestEnd(t *testing.T) {
 
 		require.ErrorIs(t, f.engine.End(t.Context(), s, store.EndReasonUser), engine.ErrConversationEnded)
 		assert.Len(t, f.diary.calls(), 1, "작업은 대화를 끝낸 쪽만 등록한다")
+		assert.Len(t, f.analysis.calls(), 1, "쓸어 담는 쪽도 신호 추출 작업을 등록한다")
 
 		_, err = f.engine.Handle(t.Context(), s, engine.Say{ClientMessageID: newID(t), Text: sayOrdinary})
 		assert.ErrorIs(t, err, engine.ErrConversationEnded, "닫힌 대화에는 말이 더해지지 않는다")
@@ -204,6 +215,7 @@ func (f *fixture) newSweeper(idleAfter time.Duration) *engine.Sweeper {
 	sweeper, err := engine.NewSweeper(engine.SweeperOptions{
 		Store:     f.store,
 		Diary:     f.diary,
+		Analysis:  f.analysis,
 		Clock:     f.clock,
 		Logger:    f.logger,
 		IdleAfter: idleAfter,

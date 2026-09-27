@@ -35,29 +35,14 @@ func (e *Engine) gateState(ctx context.Context, s *Session, now time.Time) crisi
 		return crisis.State{}
 	}
 
-	byDate := make(map[recorddate.Date][]signal.Row, len(rows))
-	for _, row := range rows {
-		date, err := store.RecordDate(row.RecordDate)
-		if err != nil {
-			e.logger.LogAttrs(ctx, slog.LevelError, "signal row has an unreadable record date",
-				slog.Any("conversation", s), slog.String("failure", failureName(err)))
-			return crisis.State{}
-		}
-		item, itemErr := signal.ParseItem(row.Item)
-		status, statusErr := signal.ParseStatus(row.Status)
-		explicitness, explicitnessErr := signal.ParseExplicitness(row.Explicitness)
-		if itemErr != nil || statusErr != nil || explicitnessErr != nil {
-			e.logger.LogAttrs(ctx, slog.LevelError, "signal row cannot be read",
-				slog.Any("conversation", s), slog.String("record_date", date.String()))
-			return crisis.State{}
-		}
-		byDate[date] = append(byDate[date], signal.Row{
-			ConversationID: row.ConversationID.String(),
-			Item:           item,
-			Status:         status,
-			Explicitness:   explicitness,
-			Cancelled:      row.Cancelled,
-		})
+	// 저장된 행을 계산 코어의 행으로 옮기는 일은 저장소 쪽 한 곳에만 둔다.
+	// 마음 신호 경로(internal/api)가 같은 쿼리에 같은 함수를 쓴다. 관문이 제 몫을 따로 들고 있으면
+	// 행을 읽는 규칙이 바뀔 때 한쪽만 고쳐도 아무 시험이 실패하지 않는다.
+	byDate, err := store.SignalDaysByUser(rows)
+	if err != nil {
+		e.logger.LogAttrs(ctx, slog.LevelError, "signal row cannot be read",
+			slog.Any("conversation", s), slog.String("failure", failureName(err)))
+		return crisis.State{}
 	}
 
 	days, err := signal.MergeDays(byDate)

@@ -2,15 +2,19 @@
 # 브라우저 흐름 테스트를 처음부터 끝까지 돌린다. 저장소 루트에서 `make e2e`로 부른다.
 #
 #   1. 로컬 DB(docker compose)를 띄우고, 테스트 전용 데이터베이스를 새로 만들어 마이그레이션을 올린다.
-#   2. API 서버와 작업자를 빌드해 빈 포트에 띄운다. 일기 초안은 작업자가 만들기 때문에 둘 다 있어야 대화가 일기까지 간다.
-#   3. 웹앱을 운영용으로 빌드하고, /api와 /ws를 그 서버로 넘기는 미리보기 서버로 띄운다.
+#   2. API 서버와 작업자를 빌드해 빈 포트에 띄운다. 일기 초안과 마음 신호는 작업자가 만들기 때문에
+#      둘 다 있어야 대화가 일기와 추세 화면까지 간다.
+#   3. 시연 계정과 그 계정의 지난 며칠치 기록을 심는다. 며칠에 걸친 점 달력과 시연 계정만 볼 수 있는 화면은
+#      브라우저로 하루 만에 만들 수 없다. 심는 명령은 신호 행을 써 넣지 않고 실제 추출 경로를 부르므로,
+#      화면에 보이는 근거와 일수는 살아 있는 계산이 만든 값이다.
+#   4. 웹앱을 운영용으로 빌드하고, /api와 /ws를 그 서버로 넘기는 미리보기 서버로 띄운다.
 #      브라우저가 보기에 화면과 API가 같은 출처라서 세션 쿠키와 서버의 같은 출처 확인이 운영과 똑같이 동작한다.
-#   4. Playwright를 화면 없이 돌린다.
-#   5. 성공하든 실패하든 띄운 서버를 모두 내린다. 통과했으면 테스트용 데이터베이스도 지워서 아무것도 남기지 않는다.
+#   5. Playwright를 화면 없이 돌린다.
+#   6. 성공하든 실패하든 띄운 서버를 모두 내린다. 통과했으면 테스트용 데이터베이스도 지워서 아무것도 남기지 않는다.
 #      DB 컨테이너는 개발에도 쓰는 것이라 내리지 않는다.
 #
-# 언어 모델은 언제나 정해 둔 답(AI_PROVIDER=scripted)으로 돈다. 서버와 작업자에 함께 걸어야
-# 대화도 일기 초안도 실제 모델을 부르지 않는다.
+# 언어 모델은 언제나 정해 둔 답(AI_PROVIDER=scripted)으로 돈다. 서버와 작업자, 심는 명령에 함께 걸어야
+# 대화도 일기 초안도 마음 신호도 실제 모델을 부르지 않는다.
 #
 # 브라우저는 기본으로 chromium 하나만 쓴다. PLAYWRIGHT_ALL_BROWSERS=1을 주면 WebKit(iPhone)까지 받아서
 # 두 엔진으로 돌린다. 까닭은 playwright.config.ts에 적혀 있다.
@@ -24,6 +28,13 @@ HOST=127.0.0.1
 # 개발용 데이터베이스(naeil)를 건드리지 않으려고 같은 DB 서버 안에 따로 만든다. 돌릴 때마다 지우고 새로 만든다.
 E2E_DATABASE=naeil_e2e
 READY_TIMEOUT_SECONDS=60
+# 심어 두는 시연 계정이다. 돌릴 때마다 데이터베이스를 새로 만들므로 주소를 고정해도 부딪히지 않는다.
+# 시나리오는 이 계정을 읽기만 한다. 기록을 바꾸는 흐름은 저마다 새로 가입해서 쓴다.
+E2E_DEMO_EMAIL=demo@example.com
+E2E_DEMO_PASSWORD='dawn-over-the-quiet-harbor-27'
+# 심는 날 수. 점수의 창과 평소를 잡는 기간이 각각 두 주라, 둘이 겹치지 않으려면 네 주를 심어야 한다.
+# 짧게 심으면 평소를 잡는 기간이 최근 두 주와 겹쳐서, 평소와 견준 말이 모두 "평소와 비슷해요"로 밋밋해진다.
+E2E_DEMO_DAYS=${E2E_DEMO_DAYS:-28}
 # 만들어 둔 데이터베이스를 끝에 지울지다. 통과하면 지우고, 실패하면 남겨서 무슨 기록이 쌓였는지 볼 수 있게 한다.
 DATABASE_CREATED=""
 
@@ -62,7 +73,7 @@ cleanup() {
     drop_database
   else
     # 서버 로그에는 식별자와 단계만 남는다. 실패했을 때 원인을 찾을 수 있게 끝부분을 보여 준다.
-    for name in server worker web; do
+    for name in server worker web seed; do
       if [ -s "$WORK/$name.log" ]; then
         printf '\n---- %s 로그의 끝부분 ----\n' "$name" >&2
         tail -n 40 "$WORK/$name.log" >&2
@@ -143,6 +154,19 @@ DATABASE_URL="$E2E_DATABASE_URL" "$WORK/server" migrate up 2>"$WORK/migrate.log"
     fail "마이그레이션이 실패했다"
   }
 
+log "시연 계정과 지난 ${E2E_DEMO_DAYS}일치 기록을 심는다"
+# 서버를 띄우기 전에 심는다. 이 명령은 작업 큐를 거치지 않고 추출을 바로 부르므로, 끝났을 때 기록이 다 준비되어 있다.
+APP_ENV=dev \
+  AI_PROVIDER=scripted \
+  DATABASE_URL="$E2E_DATABASE_URL" \
+  "$WORK/server" seed demo \
+  --email="$E2E_DEMO_EMAIL" --password="$E2E_DEMO_PASSWORD" --days="$E2E_DEMO_DAYS" \
+  >"$WORK/seed.log" 2>&1 ||
+  {
+    tail -n 20 "$WORK/seed.log" >&2
+    fail "시연 계정을 심지 못했다"
+  }
+
 API_PORT="$(free_port)"
 WORKER_HEALTH_PORT="$(free_port)"
 WEB_PORT="$(free_port)"
@@ -206,6 +230,10 @@ if [ "${PLAYWRIGHT_ALL_BROWSERS:-}" = "1" ]; then
 fi
 
 log "Playwright를 돌린다"
-E2E_BASE_URL="$WEB_ORIGIN" pnpm exec playwright test "$@"
+E2E_BASE_URL="$WEB_ORIGIN" \
+  E2E_DEMO_EMAIL="$E2E_DEMO_EMAIL" \
+  E2E_DEMO_PASSWORD="$E2E_DEMO_PASSWORD" \
+  E2E_DEMO_DAYS="$E2E_DEMO_DAYS" \
+  pnpm exec playwright test "$@"
 
 log "통과"

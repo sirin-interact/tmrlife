@@ -188,6 +188,14 @@ lint-docker: ## golangci-lint를 설치하지 않고 Docker로 돌린다
 		-v naeil-golangci-cache:/root/.cache \
 		$(GOLANGCI_LINT_IMAGE) golangci-lint run ./...
 
+# 낡은 캐시가 없는 문제를 알리는 일이 있다. 특히 "//nolint 지시문이 쓰이지 않았다"(nolintlint)는,
+# 그 지시문이 막고 있는 검사의 결과가 캐시에서 올 때 잘못 뜬다. CI는 언제나 빈 캐시로 돌기 때문에 로컬에서만 겪는다.
+# 고친 데가 없는데 로컬에서만 lint가 실패하면 이 명령으로 캐시를 버리고 다시 돌린다. 오래 걸리는 것 말고는 잃는 것이 없다.
+.PHONY: lint-docker-reset
+lint-docker-reset: ## Docker로 돌리는 lint의 캐시를 버리고 다시 돌린다 (고친 데 없이 lint가 실패할 때)
+	@docker volume rm -f naeil-golangci-cache >/dev/null
+	@$(MAKE) --no-print-directory lint-docker
+
 .PHONY: lint-web
 lint-web:
 	$(call run_web_script,lint)
@@ -256,10 +264,10 @@ check: sqlc-diff oapi-diff lint typecheck format-check test build-web ## 끝내�
 .PHONY: eval
 eval: ## 실제 모델을 부르는 평가를 한꺼번에 돌린다 (돈과 시간이 든다)
 	@if [ -z "$${GEMINI_API_KEY:-}" ]; then echo "!! GEMINI_API_KEY가 없다"; exit 1; fi
-	@echo "==> server: 실제 모델 평가 (gate, engine, reply, diary, gemini)"
+	@echo "==> server: 실제 모델 평가 (gate, engine, reply, diary, analysis, gemini)"
 	@cd server && GATE_LIVE_EVAL=1 GATE_INDEP=1 ENGINE_REDTEAM=1 REPLY_LIVE_EVAL=1 \
-		GEMINI_LIVE_TESTS=1 GEMINI_LIVE_EVAL=1 \
-		go test -count=1 -v -timeout 30m ./internal/gate/ ./internal/engine/ ./internal/reply/ ./internal/diary/ ./internal/ai/gemini/
+		SIGNAL_ACCURACY_TESTS=1 GEMINI_LIVE_TESTS=1 GEMINI_LIVE_EVAL=1 \
+		go test -count=1 -v -timeout 30m ./internal/gate/ ./internal/engine/ ./internal/reply/ ./internal/diary/ ./internal/analysis/ ./internal/ai/gemini/
 
 # DB, API 서버, 작업자, 빌드된 웹앱을 띄우고 브라우저(chromium)로 가입부터 일기까지 밟아 본 뒤 모두 내린다.
 # 일기 초안은 작업자가 만들기 때문에 서버만으로는 대화가 일기까지 가지 않는다.

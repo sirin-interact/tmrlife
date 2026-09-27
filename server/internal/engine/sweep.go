@@ -27,9 +27,12 @@ const (
 type SweeperOptions struct {
 	Store *store.Store
 	// Diary는 비워 둘 수 있다. 비우면 초안 작업을 넣지 않는다.
-	Diary  DiaryEnqueuer
-	Clock  clock.Clock
-	Logger *slog.Logger
+	Diary DiaryEnqueuer
+	// Analysis는 비워 둘 수 있다. 비우면 신호 추출 작업을 넣지 않는다.
+	// 쓸어 담는 쪽에도 주어야 한다. 주지 않으면 연결이 끊긴 채 닫힌 대화만 분석되지 않고 남는다.
+	Analysis AnalysisEnqueuer
+	Clock    clock.Clock
+	Logger   *slog.Logger
 	// IdleAfter는 마지막 발화(없으면 시작한 시각)로부터 이만큼 지난 열린 대화를 닫는다.
 	// 설정의 DISCONNECT_END_AFTER를 넘긴다.
 	IdleAfter time.Duration
@@ -65,7 +68,7 @@ func NewSweeper(opts SweeperOptions) (*Sweeper, error) {
 		return nil, errors.New("engine: max rows must not be negative")
 	}
 	s := &Sweeper{
-		closer:    closer{store: opts.Store, diary: opts.Diary, clock: opts.Clock},
+		closer:    closer{store: opts.Store, diary: opts.Diary, analysis: opts.Analysis, clock: opts.Clock},
 		logger:    opts.Logger,
 		idleAfter: opts.IdleAfter,
 		maxRows:   opts.MaxRows,
@@ -86,6 +89,8 @@ type SweepResult struct {
 	Resumed int
 	// DiaryJobs는 등록한 일기 초안 작업의 수다.
 	DiaryJobs int
+	// AnalysisJobs는 등록한 마음 신호 추출 작업의 수다.
+	AnalysisJobs int
 }
 
 // LogValue는 결과를 로그 속성 묶음으로 바꾼다.
@@ -95,6 +100,7 @@ func (r SweepResult) LogValue() slog.Value {
 		slog.Int("ended", r.Ended),
 		slog.Int("resumed", r.Resumed),
 		slog.Int("diary_jobs", r.DiaryJobs),
+		slog.Int("analysis_jobs", r.AnalysisJobs),
 	)
 }
 
@@ -137,6 +143,9 @@ func (s *Sweeper) Sweep(ctx context.Context) (SweepResult, error) {
 		result.Ended++
 		if ended.DiaryExpected {
 			result.DiaryJobs++
+		}
+		if ended.AnalysisExpected {
+			result.AnalysisJobs++
 		}
 	}
 	if result.Ended > 0 || result.Resumed > 0 {

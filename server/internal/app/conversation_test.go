@@ -28,7 +28,7 @@ func TestNewConversationEngine(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(deps.Close)
 
-		conversation, err := deps.NewConversationEngine(fake.New("conversation"), fake.New("gate"), nil)
+		conversation, err := deps.NewConversationEngine(fake.New("conversation"), fake.New("gate"), nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, conversation)
 
@@ -51,7 +51,7 @@ func TestNewConversationEngine(t *testing.T) {
 	t.Run("모델 없이는 만들지 않는다", func(t *testing.T) {
 		t.Parallel()
 		deps := newDeps(t, testConfig(t, nil), NameServer)
-		_, err := deps.NewConversationEngine(nil, fake.New("gate"), nil)
+		_, err := deps.NewConversationEngine(nil, fake.New("gate"), nil, nil)
 		require.Error(t, err)
 	})
 }
@@ -75,7 +75,7 @@ func TestNewConversationSweeper(t *testing.T) {
 	t.Parallel()
 	deps := newDeps(t, testConfig(t, nil), NameWorker)
 
-	sweeper, err := deps.NewConversationSweeper(nil)
+	sweeper, err := deps.NewConversationSweeper(nil, nil)
 	require.NoError(t, err)
 	result, err := sweeper.Sweep(t.Context())
 	require.NoError(t, err)

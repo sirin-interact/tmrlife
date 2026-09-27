@@ -15,12 +15,58 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v5"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for ConfidenceComponent.
+const (
+	ConfidenceComponentExplicitness   ConfidenceComponent = "explicitness"
+	ConfidenceComponentItemCoverage   ConfidenceComponent = "item_coverage"
+	ConfidenceComponentNone           ConfidenceComponent = "none"
+	ConfidenceComponentRecordCoverage ConfidenceComponent = "record_coverage"
+)
+
+// Valid indicates whether the value is a known member of the ConfidenceComponent enum.
+func (e ConfidenceComponent) Valid() bool {
+	switch e {
+	case ConfidenceComponentExplicitness:
+		return true
+	case ConfidenceComponentItemCoverage:
+		return true
+	case ConfidenceComponentNone:
+		return true
+	case ConfidenceComponentRecordCoverage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ConfidenceLevel.
+const (
+	ConfidenceLevelHigh   ConfidenceLevel = "high"
+	ConfidenceLevelLow    ConfidenceLevel = "low"
+	ConfidenceLevelMedium ConfidenceLevel = "medium"
+)
+
+// Valid indicates whether the value is a known member of the ConfidenceLevel enum.
+func (e ConfidenceLevel) Valid() bool {
+	switch e {
+	case ConfidenceLevelHigh:
+		return true
+	case ConfidenceLevelLow:
+		return true
+	case ConfidenceLevelMedium:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for ConsentKind.
 const (
@@ -187,6 +233,222 @@ func (e ProblemField) Valid() bool {
 	case ProblemFieldText:
 		return true
 	case ProblemFieldTimezone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ScoreBand.
+const (
+	ScoreBandMild             ScoreBand = "mild"
+	ScoreBandMinimal          ScoreBand = "minimal"
+	ScoreBandModerate         ScoreBand = "moderate"
+	ScoreBandModeratelySevere ScoreBand = "moderately_severe"
+	ScoreBandNone             ScoreBand = "none"
+	ScoreBandSevere           ScoreBand = "severe"
+)
+
+// Valid indicates whether the value is a known member of the ScoreBand enum.
+func (e ScoreBand) Valid() bool {
+	switch e {
+	case ScoreBandMild:
+		return true
+	case ScoreBandMinimal:
+		return true
+	case ScoreBandModerate:
+		return true
+	case ScoreBandModeratelySevere:
+		return true
+	case ScoreBandNone:
+		return true
+	case ScoreBandSevere:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SignalExplicitness.
+const (
+	SignalExplicitnessDirect   SignalExplicitness = "direct"
+	SignalExplicitnessIndirect SignalExplicitness = "indirect"
+	SignalExplicitnessNone     SignalExplicitness = "none"
+)
+
+// Valid indicates whether the value is a known member of the SignalExplicitness enum.
+func (e SignalExplicitness) Valid() bool {
+	switch e {
+	case SignalExplicitnessDirect:
+		return true
+	case SignalExplicitnessIndirect:
+		return true
+	case SignalExplicitnessNone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SignalItem.
+const (
+	SignalItemAppetite      SignalItem = "appetite"
+	SignalItemConcentration SignalItem = "concentration"
+	SignalItemFatigue       SignalItem = "fatigue"
+	SignalItemInterest      SignalItem = "interest"
+	SignalItemMood          SignalItem = "mood"
+	SignalItemPsychomotor   SignalItem = "psychomotor"
+	SignalItemSelfBlame     SignalItem = "self_blame"
+	SignalItemSleep         SignalItem = "sleep"
+)
+
+// Valid indicates whether the value is a known member of the SignalItem enum.
+func (e SignalItem) Valid() bool {
+	switch e {
+	case SignalItemAppetite:
+		return true
+	case SignalItemConcentration:
+		return true
+	case SignalItemFatigue:
+		return true
+	case SignalItemInterest:
+		return true
+	case SignalItemMood:
+		return true
+	case SignalItemPsychomotor:
+		return true
+	case SignalItemSelfBlame:
+		return true
+	case SignalItemSleep:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SignalStatus.
+const (
+	SignalStatusNotMentioned SignalStatus = "not_mentioned"
+	SignalStatusNotObserved  SignalStatus = "not_observed"
+	SignalStatusObserved     SignalStatus = "observed"
+)
+
+// Valid indicates whether the value is a known member of the SignalStatus enum.
+func (e SignalStatus) Valid() bool {
+	switch e {
+	case SignalStatusNotMentioned:
+		return true
+	case SignalStatusNotObserved:
+		return true
+	case SignalStatusObserved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageReason.
+const (
+	StageReasonCarriedInsufficientRecords StageReason = "carried_insufficient_records"
+	StageReasonChangeDetected             StageReason = "change_detected"
+	StageReasonHeldInsufficientRecords    StageReason = "held_insufficient_records"
+	StageReasonHeldLowConfidence          StageReason = "held_low_confidence"
+	StageReasonHeldNoRecordToday          StageReason = "held_no_record_today"
+	StageReasonHeldOneStepPerDay          StageReason = "held_one_step_per_day"
+	StageReasonNoRecentRecords            StageReason = "no_recent_records"
+	StageReasonScore                      StageReason = "score"
+	StageReasonSustained                  StageReason = "sustained"
+)
+
+// Valid indicates whether the value is a known member of the StageReason enum.
+func (e StageReason) Valid() bool {
+	switch e {
+	case StageReasonCarriedInsufficientRecords:
+		return true
+	case StageReasonChangeDetected:
+		return true
+	case StageReasonHeldInsufficientRecords:
+		return true
+	case StageReasonHeldLowConfidence:
+		return true
+	case StageReasonHeldNoRecordToday:
+		return true
+	case StageReasonHeldOneStepPerDay:
+		return true
+	case StageReasonNoRecentRecords:
+		return true
+	case StageReasonScore:
+		return true
+	case StageReasonSustained:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrendComparison.
+const (
+	TrendComparisonLessOften TrendComparison = "less_often"
+	TrendComparisonMoreOften TrendComparison = "more_often"
+	TrendComparisonNone      TrendComparison = "none"
+	TrendComparisonSimilar   TrendComparison = "similar"
+)
+
+// Valid indicates whether the value is a known member of the TrendComparison enum.
+func (e TrendComparison) Valid() bool {
+	switch e {
+	case TrendComparisonLessOften:
+		return true
+	case TrendComparisonMoreOften:
+		return true
+	case TrendComparisonNone:
+		return true
+	case TrendComparisonSimilar:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrendMark.
+const (
+	TrendMarkNoConversation TrendMark = "no_conversation"
+	TrendMarkNotMentioned   TrendMark = "not_mentioned"
+	TrendMarkNotObserved    TrendMark = "not_observed"
+	TrendMarkObserved       TrendMark = "observed"
+)
+
+// Valid indicates whether the value is a known member of the TrendMark enum.
+func (e TrendMark) Valid() bool {
+	switch e {
+	case TrendMarkNoConversation:
+		return true
+	case TrendMarkNotMentioned:
+		return true
+	case TrendMarkNotObserved:
+		return true
+	case TrendMarkObserved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrendRowKey.
+const (
+	TrendRowKeyEnergy TrendRowKey = "energy"
+	TrendRowKeyMood   TrendRowKey = "mood"
+	TrendRowKeySleep  TrendRowKey = "sleep"
+)
+
+// Valid indicates whether the value is a known member of the TrendRowKey enum.
+func (e TrendRowKey) Valid() bool {
+	switch e {
+	case TrendRowKeyEnergy:
+		return true
+	case TrendRowKeyMood:
+		return true
+	case TrendRowKeySleep:
 		return true
 	default:
 		return false
@@ -456,6 +718,13 @@ type AuthResponse struct {
 	User User `json:"user"`
 }
 
+// ConfidenceComponent 신뢰도를 이루는 세 요소. `record_coverage` 기록 충실도, `item_coverage` 항목 충족도,
+// `explicitness` 근거 명시성. `none`은 최종 값을 계산하지 않아 가리킬 요소가 없다는 뜻이다.
+type ConfidenceComponent string
+
+// ConfidenceLevel 신뢰도의 구간. `medium` 이상이어야 개입 단계를 올린다. 기록 부족도 `low`다.
+type ConfidenceLevel string
+
 // ConsentGrant defines model for ConsentGrant.
 type ConsentGrant struct {
 	// Kind 동의의 종류.
@@ -485,6 +754,44 @@ type ConsentProblem struct {
 
 // ConversationMode 대화를 시작할 때의 기본 방식
 type ConversationMode string
+
+// DaySignalItem 하루의 한 항목이다. `status`와 `explicitness`는 그날 그 항목의 판단으로,
+// 취소한 행을 뺀 뒤에 합친 값이다. 하루에 한 번이라도 관찰되면 관찰됨이고, 근거가 더 분명한 쪽의 명시성을 쓴다.
+type DaySignalItem struct {
+	// Explicitness 판단의 근거가 얼마나 분명했는지. `direct` 사용자가 직접 말했다, `indirect` 사용자의 말에서 미루어 짐작했다,
+	// `none` 근거가 없다(언급 없음인 판단에만 붙는다).
+	Explicitness SignalExplicitness `json:"explicitness"`
+
+	// Item 점수에 쓰는 여덟 항목. 자해나 자살에 관한 표현은 항목이 아니다. 그것은 위기 관문이 따로 맡는다.
+	// `interest` 흥미와 즐거움이 줄어듦, `mood` 우울하거나 희망이 없음, `sleep` 잠, `fatigue` 피곤하고 기운이 없음,
+	// `appetite` 입맛, `self_blame` 자신을 탓하거나 쓸모없다고 느낌, `concentration` 집중,
+	// `psychomotor` 말과 움직임이 느려지거나 안절부절못함.
+	Item SignalItem `json:"item"`
+
+	// Rows 그 항목에 대해 나온 판단. 하루에 대화를 여러 번 했으면 대화마다 하나씩이다
+	Rows []SignalEvidence `json:"rows"`
+
+	// Status 한 항목에 대한 판단. `observed` 그 신호가 있었다, `not_observed` 이야기가 나왔고 괜찮았다,
+	// `not_mentioned` 이야기가 없었다. 언급 없음은 "없었다"가 아니라 "모른다"에 가깝다.
+	Status SignalStatus `json:"status"`
+}
+
+// DaySignals 하루의 마음 신호 전부
+type DaySignals struct {
+	// Analysed 그날 분석이 끝난 대화가 있는지. 거짓이면 `items`는 비어 있다.
+	// 대화하지 않은 날, 분석이 도는 중인 날, 분석을 꺼 둔 날이 모두 거짓이다.
+	Analysed bool `json:"analysed"`
+
+	// Date 기록 날짜. 달력 날짜가 아니라, 사용자의 시간대로 새벽 4시에 바뀌는 하루다.
+	// 서버가 정해서 알려주는 값이다. 웹앱이 시각에서 직접 계산하지 않는다.
+	//
+	//
+	// Example: 2026-09-20
+	Date RecordDate `json:"date"`
+
+	// Items `analysed`가 참이면 여덟 항목이 정해진 순서로 온다. 언급이 없었던 항목도 빠지지 않는다
+	Items []DaySignalItem `json:"items"`
+}
 
 // Diary defines model for Diary.
 type Diary struct {
@@ -542,6 +849,41 @@ type DiarySummary struct {
 type DiaryUpdate struct {
 	// Text 일기 글 전체
 	Text string `json:"text"`
+}
+
+// InternalReview 기준일 하루의 평가 전부다. 추정 점수, 신뢰도, 평소, 변화 탐지, 개입 단계가 모두 같은 기록과 같은 기준일,
+// 같은 조정 값에서 나온 값이라 서로 앞뒤가 맞는다.
+type InternalReview struct {
+	// AsOf 기준일. 오늘의 분석이 아직 없으면 어제가 기준일이 된다
+	AsOf RecordDate `json:"as_of"`
+
+	// Baseline 그 사람의 평소. 첫 대화 날부터 얼마 동안의 기록으로 잡고 한번 잡히면 고정한다.
+	// 기간 안의 날을 사용자가 지웠을 때만 다시 정해진다. `established`가 거짓인 동안의 값은 "지금까지 모인 값"이고 평소로 쓰면 안 된다.
+	Baseline ReviewBaseline `json:"baseline"`
+
+	// Change 평소에서 벗어난 정도를 날마다 쌓아 변화를 알아챈 흐름이다. 평소가 잡히기 전에는 돌지 않는다.
+	// 누적값이 한계값을 넘으면 감지이고, 넘은 뒤에도 0으로 되돌리지 않는다. 나아지면 줄어들어 저절로 풀린다.
+	Change ReviewChange `json:"change"`
+
+	// Confidence 기준일의 신뢰도와 그 값이 나온 과정. 최종 값은 세 요소의 평균이 아니라 가장 작은 값이다.
+	// 평균을 내면 한 요소가 아주 나빠도 다른 요소에 묻힌다.
+	Confidence ReviewConfidence `json:"confidence"`
+
+	// Extractors 이 계정의 신호 행을 남긴 추출기들이다. 최근에 쓴 것이 앞에 온다. 신호 행이 없으면 빈 배열이다.
+	// 화면에 반드시 띄운다. 키 없이 띄운 서버는 낱말 표로 답하는 모델로도 여덟 항목을 채우기 때문에,
+	// 이 표시가 없으면 화면의 판단과 근거가 실제 모델이 읽은 것인지 가릴 수 없다.
+	Extractors []ReviewExtractor `json:"extractors"`
+
+	// Params 이 계산에 쓴 조정 값이다. 결과를 읽을 때 함께 필요한 경계를 화면이 코드에 박아 두지 않게 한다
+	// (누적값 옆에 한계값을 그리거나, 점수 옆에 구간의 경계를 표시할 때).
+	Params ReviewParams `json:"params"`
+
+	// Score 기준일의 추정 점수와 그 값이 나온 과정
+	Score ReviewScore `json:"score"`
+
+	// Stage 첫 대화 날부터 기준일까지 하루씩 다시 돌린 개입 단계의 흐름이다.
+	// 결과를 저장해 두지 않기 때문에 사용자가 지난 하루를 지우면 그 뒤의 단계가 모두 다시 정해진다.
+	Stage ReviewStage `json:"stage"`
 }
 
 // LoginRequest defines model for LoginRequest.
@@ -646,6 +988,324 @@ type ResourceList struct {
 	Items []Resource `json:"items"`
 }
 
+// ReviewBaseline 그 사람의 평소. 첫 대화 날부터 얼마 동안의 기록으로 잡고 한번 잡히면 고정한다.
+// 기간 안의 날을 사용자가 지웠을 때만 다시 정해진다. `established`가 거짓인 동안의 값은 "지금까지 모인 값"이고 평소로 쓰면 안 된다.
+type ReviewBaseline struct {
+	// Days 평소를 정하는 데 쓴 대화한 날 수
+	Days int `json:"days"`
+
+	// End 기간의 마지막 날. 기준일까지의 기록으로 아직 정할 수 없으면 null이다
+	End *RecordDate `json:"end,omitempty"`
+
+	// Established 기준일에 평소가 잡혀 있는지. 기간의 마지막 날이 지나야 참이 된다
+	Established bool `json:"established"`
+
+	// Extended 첫 기간 안에 대화한 날이 모자라서 기간을 늘렸는지
+	Extended bool `json:"extended"`
+
+	// ItemRates 항목별 관찰 비율. 여덟 항목이 정해진 순서로 온다
+	ItemRates []ReviewItemRate `json:"item_rates"`
+
+	// Mu 평소의 하루 평균 신호 수. `observed_total` ÷ `days`이고 `days`가 0이면 0이다
+	Mu float64 `json:"mu"`
+
+	// ObservedTotal 그 날들의 "그날 관찰된 항목 수"를 모두 더한 값. `mu`의 분자다
+	ObservedTotal int `json:"observed_total"`
+
+	// Start 기간의 첫날, 곧 첫 대화 날. 대화한 날이 없으면 null이다
+	Start *RecordDate `json:"start,omitempty"`
+
+	// TrendRates 추세 화면의 줄별 관찰 비율. 기분, 수면, 에너지 순
+	TrendRates []ReviewTrendRate `json:"trend_rates"`
+}
+
+// ReviewChange 평소에서 벗어난 정도를 날마다 쌓아 변화를 알아챈 흐름이다. 평소가 잡히기 전에는 돌지 않는다.
+// 누적값이 한계값을 넘으면 감지이고, 넘은 뒤에도 0으로 되돌리지 않는다. 나아지면 줄어들어 저절로 풀린다.
+type ReviewChange struct {
+	// Detected 기준일에 변화 감지 상태인지
+	Detected bool `json:"detected"`
+
+	// From 누적을 시작한 날짜, 곧 평소 기간의 마지막 날 다음 날. 평소가 잡히지 않았으면 null이다
+	From *RecordDate `json:"from,omitempty"`
+
+	// Running 기준일에 변화 탐지가 돌고 있는지. 평소가 잡히기 전에는 거짓이다
+	Running bool `json:"running"`
+
+	// S 기준일까지의 누적값
+	S float64 `json:"s"`
+
+	// Series 누적을 시작한 날부터 기준일까지 대화한 날마다 하나. 대화하지 않은 날은 없다
+	Series []ReviewChangePoint `json:"series"`
+}
+
+// ReviewChangePoint 변화 탐지가 누적한 날 하루
+type ReviewChangePoint struct {
+	// AtCeiling 누적값이 천장에 걸려 그날의 증가량이 다 쌓이지 못했는지
+	AtCeiling bool `json:"at_ceiling"`
+
+	// Capped 하루 증가량의 상한에 걸려 `step`이 줄었는지
+	Capped bool `json:"capped"`
+
+	// Date 기록 날짜. 달력 날짜가 아니라, 사용자의 시간대로 새벽 4시에 바뀌는 하루다.
+	// 서버가 정해서 알려주는 값이다. 웹앱이 시각에서 직접 계산하지 않는다.
+	//
+	//
+	// Example: 2026-09-20
+	Date     RecordDate `json:"date"`
+	Detected bool       `json:"detected"`
+
+	// Observed 그날 관찰된 항목 수
+	Observed int `json:"observed"`
+
+	// S 그날까지의 누적값. 보여주기 위한 값이다. 감지 여부는 이 값을 한계값과 견주지 말고 `detected`에서 읽는다
+	S float64 `json:"s"`
+
+	// Step 그날 누적값에 더한 값(관찰된 항목 수 − 평소의 하루 평균 − 허용 여유). 상한에 걸렸으면 상한값이다
+	Step float64 `json:"step"`
+}
+
+// ReviewConfidence 기준일의 신뢰도와 그 값이 나온 과정. 최종 값은 세 요소의 평균이 아니라 가장 작은 값이다.
+// 평균을 내면 한 요소가 아주 나빠도 다른 요소에 묻힌다.
+type ReviewConfidence struct {
+	ConversationDays int `json:"conversation_days"`
+
+	// DirectJudgements 그 가운데 사용자가 직접 말한 것에 근거한 판단 수
+	DirectJudgements int `json:"direct_judgements"`
+
+	// Explicitness 근거 명시성. 직접 언급 판단 수 ÷ 관찰됨 판단 수.
+	// 관찰됨이 하나도 없으면 1/1이다. 따질 판단이 없는 것이지 근거가 흐린 것이 아니다.
+	Explicitness ReviewRatio `json:"explicitness"`
+
+	// Insufficient 기록 부족이라는 뜻이다. 참이면 `value`는 0/0이고 `limiting`은 `none`, `level`은 `low`다
+	Insufficient bool `json:"insufficient"`
+
+	// ItemCoverage 항목 충족도. 이야기가 나온 항목 수 ÷ 여덟
+	ItemCoverage ReviewRatio `json:"item_coverage"`
+
+	// Level 신뢰도의 구간. `medium` 이상이어야 개입 단계를 올린다. 기록 부족도 `low`다.
+	Level ConfidenceLevel `json:"level"`
+
+	// Limiting 신뢰도를 이루는 세 요소. `record_coverage` 기록 충실도, `item_coverage` 항목 충족도,
+	// `explicitness` 근거 명시성. `none`은 최종 값을 계산하지 않아 가리킬 요소가 없다는 뜻이다.
+	Limiting ConfidenceComponent `json:"limiting"`
+
+	// MentionedItems 창 안에서 한 번이라도 이야기가 나온 항목의 수
+	MentionedItems int `json:"mentioned_items"`
+
+	// MissingItems 창 안에서 한 번도 이야기가 나오지 않은 항목. 다음 대화에서 자연스럽게 물어볼 항목을 고르는 데 쓴다
+	MissingItems []SignalItem `json:"missing_items"`
+
+	// ObservedJudgements 창 안의 관찰됨 판단 수. 하루의 항목 하나가 판단 하나다
+	ObservedJudgements int `json:"observed_judgements"`
+
+	// RecordCoverage 기록 충실도. 대화한 일수 ÷ 창의 길이
+	RecordCoverage ReviewRatio `json:"record_coverage"`
+
+	// Value 최종 값. 세 요소 가운데 가장 작은 값을 센 값 그대로 담는다
+	Value ReviewRatio `json:"value"`
+}
+
+// ReviewExtractor 신호 행에 남은 추출기 표시 하나와 그 표시로 남은 행의 수다. 표시는 지시문의 판과 실제로 답한 모델을 담는다.
+// 추출 방식을 바꾼 앞뒤를 견주는 데도 쓰고, 정해 둔 답으로 채운 행을 가려내는 데도 쓴다.
+type ReviewExtractor struct {
+	// LastAt 그 표시로 남은 가장 최근 행의 시각
+	LastAt time.Time `json:"last_at"`
+
+	// Rows 그 표시로 남은 신호 행의 수. 취소한 행도 센다
+	Rows int `json:"rows"`
+
+	// Version 신호 행에 저장된 표시. 지시문의 판과 모델 이름이다
+	Version string `json:"version"`
+}
+
+// ReviewItemRate defines model for ReviewItemRate.
+type ReviewItemRate struct {
+	// Item 점수에 쓰는 여덟 항목. 자해나 자살에 관한 표현은 항목이 아니다. 그것은 위기 관문이 따로 맡는다.
+	// `interest` 흥미와 즐거움이 줄어듦, `mood` 우울하거나 희망이 없음, `sleep` 잠, `fatigue` 피곤하고 기운이 없음,
+	// `appetite` 입맛, `self_blame` 자신을 탓하거나 쓸모없다고 느낌, `concentration` 집중,
+	// `psychomotor` 말과 움직임이 느려지거나 안절부절못함.
+	Item SignalItem `json:"item"`
+
+	// Rate 대화한 날 가운데 며칠에서 관찰됐는지. 화면이 "9일 중 3일"처럼 일수로 말할 수 있게 비율이 아니라 일수 둘로 준다
+	Rate SignalRate `json:"rate"`
+}
+
+// ReviewParams 이 계산에 쓴 조정 값이다. 결과를 읽을 때 함께 필요한 경계를 화면이 코드에 박아 두지 않게 한다
+// (누적값 옆에 한계값을 그리거나, 점수 옆에 구간의 경계를 표시할 때).
+type ReviewParams struct {
+	// BandMinScores 추정 점수가 이 값 이상이면 가벼움, 중간, 다소 심함, 심함 구간이다. 네 값이 오름차순으로 온다
+	BandMinScores []int `json:"band_min_scores"`
+
+	// BaselineMinConversationDays 평소에 필요한 대화 일수. 기간 안에 모자라면 이만큼 찰 때까지 기간을 늘린다
+	BaselineMinConversationDays int `json:"baseline_min_conversation_days"`
+
+	// BaselineWindowDays 첫 대화 날부터(첫날 포함) 평소로 삼는 기간
+	BaselineWindowDays int `json:"baseline_window_days"`
+
+	// ConfidenceHighMin 신뢰도가 이 값 이상이면 높음이고, 그 사이는 보통이다
+	ConfidenceHighMin float64 `json:"confidence_high_min"`
+
+	// ConfidenceMediumMin 신뢰도가 이 값 미만이면 낮음이다
+	ConfidenceMediumMin float64 `json:"confidence_medium_min"`
+
+	// CusumH 한계값. 누적값이 이 값을 넘으면(같으면 아니다) 변화 감지다
+	CusumH float64 `json:"cusum_h"`
+
+	// CusumK 허용 여유. 평소보다 이만큼 많은 것까지는 흔한 기복으로 보고 쌓지 않는다
+	CusumK float64 `json:"cusum_k"`
+
+	// CusumMaxS 누적값의 천장을 한계값의 몇 배로 둘지. 0이면 천장이 없다
+	CusumMaxS float64 `json:"cusum_max_s"`
+
+	// CusumMaxStep 하루에 늘 수 있는 누적값의 상한. 0이면 상한이 없다
+	CusumMaxStep float64 `json:"cusum_max_step"`
+
+	// ItemScoreMinDays 환산 일수가 이 값 이상이면 항목 점수 1, 2, 3을 준다. 세 값이 오름차순으로 온다
+	ItemScoreMinDays []int `json:"item_score_min_days"`
+
+	// MinConversationDays 창 안에서 대화한 날이 이보다 적으면 기록 부족이다
+	MinConversationDays int `json:"min_conversation_days"`
+
+	// StageMinScores 추정 점수가 이 값 이상이면 1, 2, 3단계다. 세 값이 오름차순으로 온다
+	StageMinScores []int `json:"stage_min_scores"`
+
+	// SustainedStage2Days 2단계 이상이 달력 날짜로 이 일수째 이어지는 날부터 3단계로 올린다
+	SustainedStage2Days int `json:"sustained_stage2_days"`
+
+	// TrendMinDifferencePercent 최근 기간의 빈도와 평소의 빈도가 이 퍼센트포인트 이상 벌어지면 "잦음"이나 "드묾"이다
+	TrendMinDifferencePercent int `json:"trend_min_difference_percent"`
+
+	// WindowDays 점수, 신뢰도, 개입 단계가 함께 보는 최근 기간의 길이(기준일 포함)
+	WindowDays int `json:"window_days"`
+}
+
+// ReviewRatio 센 값 그대로의 분수다. 약분하지 않는다. "14일 중 7일"처럼 센 값을 그대로 보여줄 수 있게 소수로 바꾸지 않는다
+type ReviewRatio struct {
+	Den int `json:"den"`
+	Num int `json:"num"`
+}
+
+// ReviewScore 기준일의 추정 점수와 그 값이 나온 과정
+type ReviewScore struct {
+	// Band 추정 점수(0~24)가 드는 구간. 여덟 항목 척도에서 널리 쓰는 구간을 그대로 따른다.
+	// `none`은 기록이 모자라 점수를 내지 않았다는 뜻이다. 0점과는 다르다.
+	Band             ScoreBand `json:"band"`
+	ConversationDays int       `json:"conversation_days"`
+
+	// Insufficient 대화한 날이 모자라 점수를 내지 않았다는 뜻이다. 0점("충분히 들었고 신호가 없었다")과는 다른 상태다.
+	// 참이면 `total`, `band`, 항목별 환산 일수와 점수는 구하지 않은 값이므로 읽지 않는다.
+	Insufficient bool `json:"insufficient"`
+
+	// Items 여덟 항목이 정해진 순서로 온다
+	Items []ReviewScoreItem `json:"items"`
+
+	// Total 여덟 항목 점수의 합(0~24)
+	Total int `json:"total"`
+
+	// WindowFrom 기록 날짜. 달력 날짜가 아니라, 사용자의 시간대로 새벽 4시에 바뀌는 하루다.
+	// 서버가 정해서 알려주는 값이다. 웹앱이 시각에서 직접 계산하지 않는다.
+	//
+	//
+	// Example: 2026-09-20
+	WindowFrom RecordDate `json:"window_from"`
+
+	// WindowTo 기록 날짜. 달력 날짜가 아니라, 사용자의 시간대로 새벽 4시에 바뀌는 하루다.
+	// 서버가 정해서 알려주는 값이다. 웹앱이 시각에서 직접 계산하지 않는다.
+	//
+	//
+	// Example: 2026-09-20
+	WindowTo RecordDate `json:"window_to"`
+}
+
+// ReviewScoreItem 항목 하나가 어떻게 점수가 되었는지. 중간값을 버리지 않는다
+type ReviewScoreItem struct {
+	// ConvertedDays 관찰된 일수를 창의 길이에 맞춰 환산한 일수(창의 길이 × 관찰 일수 ÷ 대화한 일수). 기록 부족이면 0이다
+	ConvertedDays int `json:"converted_days"`
+
+	// Item 점수에 쓰는 여덟 항목. 자해나 자살에 관한 표현은 항목이 아니다. 그것은 위기 관문이 따로 맡는다.
+	// `interest` 흥미와 즐거움이 줄어듦, `mood` 우울하거나 희망이 없음, `sleep` 잠, `fatigue` 피곤하고 기운이 없음,
+	// `appetite` 입맛, `self_blame` 자신을 탓하거나 쓸모없다고 느낌, `concentration` 집중,
+	// `psychomotor` 말과 움직임이 느려지거나 안절부절못함.
+	Item SignalItem `json:"item"`
+
+	// ObservedDays 창 안에서 그 항목이 관찰된 일수. 기록 부족이어도 센다
+	ObservedDays int `json:"observed_days"`
+
+	// Points 항목 점수(0~3). 환산 일수의 경계에서 나온다. 기록 부족이면 0이다
+	Points int `json:"points"`
+}
+
+// ReviewStage 첫 대화 날부터 기준일까지 하루씩 다시 돌린 개입 단계의 흐름이다.
+// 결과를 저장해 두지 않기 때문에 사용자가 지난 하루를 지우면 그 뒤의 단계가 모두 다시 정해진다.
+type ReviewStage struct {
+	// From 흐름의 첫날, 곧 첫 대화 날. 대화한 날이 없으면 null이다
+	From *RecordDate `json:"from,omitempty"`
+
+	// Series 첫날부터 기준일까지 달력의 하루하루. 대화하지 않은 날도 들어 있다
+	Series []ReviewStagePoint `json:"series"`
+
+	// Stage 기준일의 개입 단계(0~3)
+	Stage int `json:"stage"`
+}
+
+// ReviewStagePoint 달력 날짜 하루의 개입 단계와 그 단계가 나온 과정. 대화하지 않은 날도 들어 있다.
+// 단계는 대화한 날에만 오르고, 하루에 한 단계만 오르고, 신뢰도가 낮은 날에는 오르지 않는다.
+type ReviewStagePoint struct {
+	// Confidence 신뢰도의 구간. `medium` 이상이어야 개입 단계를 올린다. 기록 부족도 `low`다.
+	Confidence ConfidenceLevel `json:"confidence"`
+
+	// ConversationDays 그날을 기준일로 한 창 안에서 대화한 일수
+	ConversationDays int `json:"conversation_days"`
+
+	// Date 기록 날짜. 달력 날짜가 아니라, 사용자의 시간대로 새벽 4시에 바뀌는 하루다.
+	// 서버가 정해서 알려주는 값이다. 웹앱이 시각에서 직접 계산하지 않는다.
+	//
+	//
+	// Example: 2026-09-20
+	Date RecordDate `json:"date"`
+
+	// Detected 그날 변화 감지 상태였는지
+	Detected bool `json:"detected"`
+
+	// ElevatedDays 2단계 이상이 그날까지 달력 날짜로 며칠째 이어졌는지. 2단계 미만이면 0이다
+	ElevatedDays int `json:"elevated_days"`
+
+	// HasRecord 그날 대화하고 분석이 끝난 기록이 있는지. 단계는 이 값이 참인 날에만 오른다
+	HasRecord bool `json:"has_record"`
+
+	// Held 단계가 오르려던 만큼 오르지 못했다는 뜻이다. 까닭은 `reasons`에 있다
+	Held bool `json:"held"`
+
+	// Insufficient 기록 부족이어서 그날의 추정 점수를 내지 않았다는 뜻이다. 참이면 `score`는 읽지 않는다
+	Insufficient bool `json:"insufficient"`
+
+	// Raw 그날의 값만으로 정한 단계(0~3). 전날과 견줘 묶거나 이어 가기 전의 값이다
+	Raw int `json:"raw"`
+
+	// Reasons 단계를 실제로 움직인 조건. 없으면 빈 배열이다
+	Reasons []StageReason `json:"reasons"`
+
+	// Score 그날의 추정 점수(0~24). `insufficient`가 참이면 구하지 않은 값이다
+	Score int `json:"score"`
+
+	// Stage 그날의 개입 단계(0~3). 0 일상, 1 회고, 2 제안, 3 권유
+	Stage int `json:"stage"`
+}
+
+// ReviewTrendRate defines model for ReviewTrendRate.
+type ReviewTrendRate struct {
+	// Rate 대화한 날 가운데 며칠에서 관찰됐는지. 화면이 "9일 중 3일"처럼 일수로 말할 수 있게 비율이 아니라 일수 둘로 준다
+	Rate SignalRate `json:"rate"`
+
+	// Row 추세 화면의 줄. `mood` 기분(흥미 저하와 우울감 가운데 하나라도 해당하면 찍힌다), `sleep` 수면, `energy` 에너지.
+	// 여덟 항목을 다 그리지 않고, 사용자가 자기 말로 떠올리기 쉬운 셋만 줄로 보여준다. 나머지는 근거 화면에서 본다.
+	Row TrendRowKey `json:"row"`
+}
+
+// ScoreBand 추정 점수(0~24)가 드는 구간. 여덟 항목 척도에서 널리 쓰는 구간을 그대로 따른다.
+// `none`은 기록이 모자라 점수를 내지 않았다는 뜻이다. 0점과는 다르다.
+type ScoreBand string
+
 // SettingsSummary defines model for SettingsSummary.
 type SettingsSummary struct {
 	// AnalysisEnabled 끄면 대화와 일기만 남기고 마음 신호를 뽑지 않는다
@@ -663,6 +1323,54 @@ type SettingsSummary struct {
 	ReminderTime string `json:"reminder_time"`
 }
 
+// SignalEvidence 대화 하나에서 항목 하나에 대해 나온 판단과 그 근거
+type SignalEvidence struct {
+	// Cancelled 사용자가 "이건 아니에요"로 취소했는지. 참이면 계산에서 빠져 있다
+	Cancelled bool `json:"cancelled"`
+
+	// ConversationID 그 판단이 나온 대화. 하루에 여러 번 대화했을 때 어느 대화에서 나왔는지 보여주는 데 쓴다
+	ConversationID openapi_types.UUID `json:"conversation_id"`
+
+	// Evidence 판단의 근거가 된 사용자의 말을 글자 그대로 옮긴 것이다. 언급 없음인 판단은 null이다.
+	// AI가 지어낸 요약이 아니라 사용자가 한 말이어야 한다. 그래서 화면은 이 글을 그대로 보여준다.
+	Evidence *string `json:"evidence"`
+
+	// Explicitness 판단의 근거가 얼마나 분명했는지. `direct` 사용자가 직접 말했다, `indirect` 사용자의 말에서 미루어 짐작했다,
+	// `none` 근거가 없다(언급 없음인 판단에만 붙는다).
+	Explicitness SignalExplicitness `json:"explicitness"`
+
+	// ID 취소하거나 되돌릴 때 쓰는 ID
+	ID openapi_types.UUID `json:"id"`
+
+	// Status 한 항목에 대한 판단. `observed` 그 신호가 있었다, `not_observed` 이야기가 나왔고 괜찮았다,
+	// `not_mentioned` 이야기가 없었다. 언급 없음은 "없었다"가 아니라 "모른다"에 가깝다.
+	Status SignalStatus `json:"status"`
+
+	// UtteranceSeq 근거가 어느 발화에서 왔는지(대화 안의 순번). 가리키는 발화가 없으면 null이다
+	UtteranceSeq *int `json:"utterance_seq,omitempty"`
+}
+
+// SignalExplicitness 판단의 근거가 얼마나 분명했는지. `direct` 사용자가 직접 말했다, `indirect` 사용자의 말에서 미루어 짐작했다,
+// `none` 근거가 없다(언급 없음인 판단에만 붙는다).
+type SignalExplicitness string
+
+// SignalItem 점수에 쓰는 여덟 항목. 자해나 자살에 관한 표현은 항목이 아니다. 그것은 위기 관문이 따로 맡는다.
+// `interest` 흥미와 즐거움이 줄어듦, `mood` 우울하거나 희망이 없음, `sleep` 잠, `fatigue` 피곤하고 기운이 없음,
+// `appetite` 입맛, `self_blame` 자신을 탓하거나 쓸모없다고 느낌, `concentration` 집중,
+// `psychomotor` 말과 움직임이 느려지거나 안절부절못함.
+type SignalItem string
+
+// SignalRate 대화한 날 가운데 며칠에서 관찰됐는지. 화면이 "9일 중 3일"처럼 일수로 말할 수 있게 비율이 아니라 일수 둘로 준다
+type SignalRate struct {
+	// Days 견준 기간에서 대화한 날 수
+	Days         int `json:"days"`
+	ObservedDays int `json:"observed_days"`
+}
+
+// SignalStatus 한 항목에 대한 판단. `observed` 그 신호가 있었다, `not_observed` 이야기가 나왔고 괜찮았다,
+// `not_mentioned` 이야기가 없었다. 언급 없음은 "없었다"가 아니라 "모른다"에 가깝다.
+type SignalStatus string
+
 // SignupRequest defines model for SignupRequest.
 type SignupRequest struct {
 	// Consents `GET /api/v1/auth/requirements`가 준 동의 목록 가운데 사용자가 동의한 것
@@ -678,10 +1386,99 @@ type SignupRequest struct {
 	Timezone *string `json:"timezone,omitempty"`
 }
 
+// StageReason 그날의 개입 단계를 그 값으로 만든 조건. 단계를 실제로 움직인 조건만 적는다.
+// `score` 점수가 올렸다, `change_detected` 점수로는 0단계인데 변화 감지 상태여서 1단계가 되었다,
+// `sustained` 2단계 이상이 정해진 일수째 이어져 3단계가 되었다,
+// `held_no_record_today` 그날 대화한 기록이 없어 오르지 못했다,
+// `held_one_step_per_day` 하루에 한 단계만 올랐다,
+// `held_low_confidence` 신뢰도가 낮아 오르지 못했다,
+// `held_insufficient_records` 기록 부족이어서 오르지 못했다,
+// `carried_insufficient_records` 기록 부족이어서 전날의 단계를 그대로 이어 갔다,
+// `no_recent_records` 창 안에 대화한 날이 하나도 없어 0단계로 돌아갔다.
+type StageReason string
+
 // Timestamp UTC 시각. 밀리초 세 자리까지 고정된 꼴이다
 //
 // Example: 2026-09-20T12:00:00.000Z
 type Timestamp = UTCTime
+
+// Trend 추세 화면이 그리는 점 달력 전부. 줄은 언제나 기분, 수면, 에너지 셋이고 그 순서대로 온다.
+// 추정 점수와 개입 단계는 담기지 않는다.
+type Trend struct {
+	// AsOf 이 값을 계산한 기준일이고 달력의 마지막 날이다.
+	// 오늘의 분석이 아직 없으면 어제가 기준일이 된다. 오늘 한 대화는 분석이 끝난 뒤에 이 화면에 나타난다.
+	AsOf RecordDate `json:"as_of"`
+
+	// BaselinePending 그 사람의 평소가 아직 정해지지 않았다는 뜻이다. 참이면 모든 줄의 `usual`이 null이고 `comparison`은 `none`이다.
+	// 평소는 첫 대화 날부터 얼마 동안의 기록으로 잡고, 그 기간이 지나야 정해진다.
+	BaselinePending bool `json:"baseline_pending"`
+
+	// ConversationDays 창 안에서 대화하고 분석이 끝난 날의 수
+	ConversationDays int `json:"conversation_days"`
+
+	// From 달력의 첫날
+	From RecordDate `json:"from"`
+
+	// InsufficientRecords 창 안에서 대화한 날이 모자라 추정을 하지 않았다는 뜻이다.
+	// 참이면 화면은 점 달력만 보여주고 평소와 견주는 말은 붙이지 않는다. 며칠 더 기록하면 된다는 안내를 그 자리에 둔다.
+	InsufficientRecords bool `json:"insufficient_records"`
+
+	// Rows 기분, 수면, 에너지 순
+	Rows []TrendRow `json:"rows"`
+
+	// To 달력의 마지막 날. `as_of`와 같다
+	To RecordDate `json:"to"`
+}
+
+// TrendCell 점 달력의 한 칸
+type TrendCell struct {
+	// Date 기록 날짜. 달력 날짜가 아니라, 사용자의 시간대로 새벽 4시에 바뀌는 하루다.
+	// 서버가 정해서 알려주는 값이다. 웹앱이 시각에서 직접 계산하지 않는다.
+	//
+	//
+	// Example: 2026-09-20
+	Date RecordDate `json:"date"`
+
+	// Mark 점 달력 한 칸의 표시. `no_conversation` 대화하지 않은 날(빈칸), `not_mentioned` 대화는 했지만 그 줄의 이야기가 없었던 날(작은 점),
+	// `not_observed` 이야기가 나왔고 괜찮았던 날(빈 점), `observed` 그 줄의 신호가 관찰된 날(찬 점).
+	// 분석이 아직 끝나지 않은 날은 대화하지 않은 날과 같은 표시다. 분석이 끝나면 그 칸이 채워진다.
+	Mark TrendMark `json:"mark"`
+}
+
+// TrendComparison 최근 기간의 빈도를 평소와 견준 결과. `more_often` 평소보다 잦음, `similar` 평소와 비슷함, `less_often` 평소보다 드묾,
+// `none` 견줄 수 없음(평소가 아직 없거나 기록이 모자라다). `none`이면 화면에 일수만 보여주고 평소와 견주는 말은 붙이지 않는다.
+type TrendComparison string
+
+// TrendMark 점 달력 한 칸의 표시. `no_conversation` 대화하지 않은 날(빈칸), `not_mentioned` 대화는 했지만 그 줄의 이야기가 없었던 날(작은 점),
+// `not_observed` 이야기가 나왔고 괜찮았던 날(빈 점), `observed` 그 줄의 신호가 관찰된 날(찬 점).
+// 분석이 아직 끝나지 않은 날은 대화하지 않은 날과 같은 표시다. 분석이 끝나면 그 칸이 채워진다.
+type TrendMark string
+
+// TrendRow 점 달력의 한 줄. "14일 중 7일, 평소보다 잦음"이라는 말을 만드는 데 필요한 값이 모두 있다.
+// 화면은 나누거나 세지 않고 이 값을 그대로 쓴다.
+type TrendRow struct {
+	// Cells 창의 첫날부터 기준일까지 날짜마다 한 칸. 대화하지 않은 날도 들어 있다
+	Cells []TrendCell `json:"cells"`
+
+	// Comparison 최근 기간의 빈도를 평소와 견준 결과. `more_often` 평소보다 잦음, `similar` 평소와 비슷함, `less_often` 평소보다 드묾,
+	// `none` 견줄 수 없음(평소가 아직 없거나 기록이 모자라다). `none`이면 화면에 일수만 보여주고 평소와 견주는 말은 붙이지 않는다.
+	Comparison TrendComparison `json:"comparison"`
+
+	// Row 추세 화면의 줄. `mood` 기분(흥미 저하와 우울감 가운데 하나라도 해당하면 찍힌다), `sleep` 수면, `energy` 에너지.
+	// 여덟 항목을 다 그리지 않고, 사용자가 자기 말로 떠올리기 쉬운 셋만 줄로 보여준다. 나머지는 근거 화면에서 본다.
+	Row TrendRowKey `json:"row"`
+
+	// Usual 평소의 빈도. 개인 기준선이 아직 잡히지 않았으면 null이다.
+	// 모으는 중인 값은 아직 평소가 아니므로 내보내지 않는다.
+	Usual *SignalRate `json:"usual,omitempty"`
+
+	// Window 최근 기간의 빈도. `days`는 창 안에서 대화한 일수이고 줄마다 같다
+	Window SignalRate `json:"window"`
+}
+
+// TrendRowKey 추세 화면의 줄. `mood` 기분(흥미 저하와 우울감 가운데 하나라도 해당하면 찍힌다), `sleep` 수면, `energy` 에너지.
+// 여덟 항목을 다 그리지 않고, 사용자가 자기 말로 떠올리기 쉬운 셋만 줄로 보여준다. 나머지는 근거 화면에서 본다.
+type TrendRowKey string
 
 // User defines model for User.
 type User struct {
@@ -904,6 +1701,9 @@ type WsUtterance struct {
 	Speaker WsSpeaker `json:"speaker"`
 	Text    string    `json:"text"`
 }
+
+// SignalID defines model for SignalID.
+type SignalID = openapi_types.UUID
 
 // BadRequest RFC 9457의 오류 본문에 `code`와 `request_id`를 더한 것
 type BadRequest = Problem
@@ -1376,6 +2176,9 @@ type ServerInterface interface {
 	// DeleteDay 하루를 지운다
 	// (DELETE /api/v1/days/{date})
 	DeleteDay(ctx *echo.Context, date RecordDate) error
+	// GetDaySignals 하루의 마음 신호와 그 근거
+	// (GET /api/v1/days/{date}/signals)
+	GetDaySignals(ctx *echo.Context, date RecordDate) error
 	// ListDiaries 한 달의 일기 목록, 또는 검색
 	// (GET /api/v1/diaries)
 	ListDiaries(ctx *echo.Context, params ListDiariesParams) error
@@ -1385,12 +2188,24 @@ type ServerInterface interface {
 	// PutDiary 일기를 고치고 확인한다
 	// (PUT /api/v1/diaries/{date})
 	PutDiary(ctx *echo.Context, date RecordDate) error
+	// GetInternalReview 계산이 그 값에 이른 과정 전부
+	// (GET /api/v1/internal/review)
+	GetInternalReview(ctx *echo.Context) error
 	// GetMe 로그인한 사용자와 설정
 	// (GET /api/v1/me)
 	GetMe(ctx *echo.Context) error
 	// ListResources 도움이 필요할 때 연락할 수 있는 곳
 	// (GET /api/v1/resources)
 	ListResources(ctx *echo.Context) error
+	// CancelSignal 이 신호는 아니라고 표시한다
+	// (POST /api/v1/signals/{signalId}/cancel)
+	CancelSignal(ctx *echo.Context, signalID SignalID) error
+	// UncancelSignal 취소를 되돌린다
+	// (POST /api/v1/signals/{signalId}/uncancel)
+	UncancelSignal(ctx *echo.Context, signalID SignalID) error
+	// GetTrend 최근 2주의 변화 추세
+	// (GET /api/v1/trend)
+	GetTrend(ctx *echo.Context) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -1447,6 +2262,22 @@ func (w *ServerInterfaceWrapper) DeleteDay(ctx *echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.DeleteDay(ctx, date)
+	return err
+}
+
+// GetDaySignals converts echo context to params.
+func (w *ServerInterfaceWrapper) GetDaySignals(ctx *echo.Context) error {
+	var err error
+	// ------------- Path parameter "date" -------------
+	var date RecordDate
+
+	err = runtime.BindStyledParameterWithOptions("simple", "date", ctx.Param("date"), &date, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "date", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter date: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetDaySignals(ctx, date)
 	return err
 }
 
@@ -1507,6 +2338,15 @@ func (w *ServerInterfaceWrapper) PutDiary(ctx *echo.Context) error {
 	return err
 }
 
+// GetInternalReview converts echo context to params.
+func (w *ServerInterfaceWrapper) GetInternalReview(ctx *echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetInternalReview(ctx)
+	return err
+}
+
 // GetMe converts echo context to params.
 func (w *ServerInterfaceWrapper) GetMe(ctx *echo.Context) error {
 	var err error
@@ -1522,6 +2362,47 @@ func (w *ServerInterfaceWrapper) ListResources(ctx *echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.ListResources(ctx)
+	return err
+}
+
+// CancelSignal converts echo context to params.
+func (w *ServerInterfaceWrapper) CancelSignal(ctx *echo.Context) error {
+	var err error
+	// ------------- Path parameter "signalId" -------------
+	var signalID SignalID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "signalId", ctx.Param("signalId"), &signalID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter signalId: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CancelSignal(ctx, signalID)
+	return err
+}
+
+// UncancelSignal converts echo context to params.
+func (w *ServerInterfaceWrapper) UncancelSignal(ctx *echo.Context) error {
+	var err error
+	// ------------- Path parameter "signalId" -------------
+	var signalID SignalID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "signalId", ctx.Param("signalId"), &signalID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter signalId: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UncancelSignal(ctx, signalID)
+	return err
+}
+
+// GetTrend converts echo context to params.
+func (w *ServerInterfaceWrapper) GetTrend(ctx *echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetTrend(ctx)
 	return err
 }
 
@@ -1581,6 +2462,11 @@ func RegisterHandlersWithOptions(router EchoRouter, si ServerInterface, options 
 	router.GET(options.BaseURL+"/api/v1/diaries/:date", wrapper.GetDiary, options.OperationMiddlewares["getDiary"]...)
 	router.PUT(options.BaseURL+"/api/v1/diaries/:date", wrapper.PutDiary, options.OperationMiddlewares["putDiary"]...)
 	router.DELETE(options.BaseURL+"/api/v1/days/:date", wrapper.DeleteDay, options.OperationMiddlewares["deleteDay"]...)
+	router.GET(options.BaseURL+"/api/v1/trend", wrapper.GetTrend, options.OperationMiddlewares["getTrend"]...)
+	router.GET(options.BaseURL+"/api/v1/days/:date/signals", wrapper.GetDaySignals, options.OperationMiddlewares["getDaySignals"]...)
+	router.POST(options.BaseURL+"/api/v1/signals/:signalId/cancel", wrapper.CancelSignal, options.OperationMiddlewares["cancelSignal"]...)
+	router.POST(options.BaseURL+"/api/v1/signals/:signalId/uncancel", wrapper.UncancelSignal, options.OperationMiddlewares["uncancelSignal"]...)
+	router.GET(options.BaseURL+"/api/v1/internal/review", wrapper.GetInternalReview, options.OperationMiddlewares["getInternalReview"]...)
 	router.GET(options.BaseURL+"/api/v1/resources", wrapper.ListResources, options.OperationMiddlewares["listResources"]...)
 
 }
@@ -2029,6 +2915,77 @@ func (response DeleteDaydefaultApplicationProblemPlusJSONResponse) VisitDeleteDa
 	return err
 }
 
+type GetDaySignalsRequestObject struct {
+	Date RecordDate `json:"date"`
+}
+
+type GetDaySignalsResponseObject interface {
+	VisitGetDaySignalsResponse(w http.ResponseWriter) error
+}
+
+type GetDaySignals200JSONResponse DaySignals
+
+func (response GetDaySignals200JSONResponse) VisitGetDaySignalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDaySignals400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response GetDaySignals400ApplicationProblemPlusJSONResponse) VisitGetDaySignalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDaySignals401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response GetDaySignals401ApplicationProblemPlusJSONResponse) VisitGetDaySignalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDaySignalsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetDaySignalsdefaultApplicationProblemPlusJSONResponse) VisitGetDaySignalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListDiariesRequestObject struct {
 	Params ListDiariesParams
 }
@@ -2323,6 +3280,74 @@ func (response PutDiarydefaultApplicationProblemPlusJSONResponse) VisitPutDiaryR
 	return err
 }
 
+type GetInternalReviewRequestObject struct {
+}
+
+type GetInternalReviewResponseObject interface {
+	VisitGetInternalReviewResponse(w http.ResponseWriter) error
+}
+
+type GetInternalReview200JSONResponse InternalReview
+
+func (response GetInternalReview200JSONResponse) VisitGetInternalReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInternalReview401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response GetInternalReview401ApplicationProblemPlusJSONResponse) VisitGetInternalReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInternalReview403ApplicationProblemPlusJSONResponse Problem
+
+func (response GetInternalReview403ApplicationProblemPlusJSONResponse) VisitGetInternalReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInternalReviewdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetInternalReviewdefaultApplicationProblemPlusJSONResponse) VisitGetInternalReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMeRequestObject struct {
 }
 
@@ -2415,6 +3440,266 @@ func (response ListResourcesdefaultApplicationProblemPlusJSONResponse) VisitList
 	return err
 }
 
+type CancelSignalRequestObject struct {
+	SignalID SignalID `json:"signalId"`
+}
+
+type CancelSignalResponseObject interface {
+	VisitCancelSignalResponse(w http.ResponseWriter) error
+}
+
+type CancelSignal200JSONResponse DaySignals
+
+func (response CancelSignal200JSONResponse) VisitCancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelSignal400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response CancelSignal400ApplicationProblemPlusJSONResponse) VisitCancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelSignal401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response CancelSignal401ApplicationProblemPlusJSONResponse) VisitCancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelSignal403ApplicationProblemPlusJSONResponse struct {
+	CrossOriginRejectedApplicationProblemPlusJSONResponse
+}
+
+func (response CancelSignal403ApplicationProblemPlusJSONResponse) VisitCancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelSignal404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response CancelSignal404ApplicationProblemPlusJSONResponse) VisitCancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelSignaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CancelSignaldefaultApplicationProblemPlusJSONResponse) VisitCancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UncancelSignalRequestObject struct {
+	SignalID SignalID `json:"signalId"`
+}
+
+type UncancelSignalResponseObject interface {
+	VisitUncancelSignalResponse(w http.ResponseWriter) error
+}
+
+type UncancelSignal200JSONResponse DaySignals
+
+func (response UncancelSignal200JSONResponse) VisitUncancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UncancelSignal400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response UncancelSignal400ApplicationProblemPlusJSONResponse) VisitUncancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UncancelSignal401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response UncancelSignal401ApplicationProblemPlusJSONResponse) VisitUncancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UncancelSignal403ApplicationProblemPlusJSONResponse struct {
+	CrossOriginRejectedApplicationProblemPlusJSONResponse
+}
+
+func (response UncancelSignal403ApplicationProblemPlusJSONResponse) VisitUncancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UncancelSignal404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response UncancelSignal404ApplicationProblemPlusJSONResponse) VisitUncancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UncancelSignaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UncancelSignaldefaultApplicationProblemPlusJSONResponse) VisitUncancelSignalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTrendRequestObject struct {
+}
+
+type GetTrendResponseObject interface {
+	VisitGetTrendResponse(w http.ResponseWriter) error
+}
+
+type GetTrend200JSONResponse Trend
+
+func (response GetTrend200JSONResponse) VisitGetTrendResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTrend401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response GetTrend401ApplicationProblemPlusJSONResponse) VisitGetTrendResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTrenddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetTrenddefaultApplicationProblemPlusJSONResponse) VisitGetTrendResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Login 로그인
@@ -2432,6 +3717,9 @@ type StrictServerInterface interface {
 	// DeleteDay 하루를 지운다
 	// (DELETE /api/v1/days/{date})
 	DeleteDay(ctx context.Context, request DeleteDayRequestObject) (DeleteDayResponseObject, error)
+	// GetDaySignals 하루의 마음 신호와 그 근거
+	// (GET /api/v1/days/{date}/signals)
+	GetDaySignals(ctx context.Context, request GetDaySignalsRequestObject) (GetDaySignalsResponseObject, error)
 	// ListDiaries 한 달의 일기 목록, 또는 검색
 	// (GET /api/v1/diaries)
 	ListDiaries(ctx context.Context, request ListDiariesRequestObject) (ListDiariesResponseObject, error)
@@ -2441,12 +3729,24 @@ type StrictServerInterface interface {
 	// PutDiary 일기를 고치고 확인한다
 	// (PUT /api/v1/diaries/{date})
 	PutDiary(ctx context.Context, request PutDiaryRequestObject) (PutDiaryResponseObject, error)
+	// GetInternalReview 계산이 그 값에 이른 과정 전부
+	// (GET /api/v1/internal/review)
+	GetInternalReview(ctx context.Context, request GetInternalReviewRequestObject) (GetInternalReviewResponseObject, error)
 	// GetMe 로그인한 사용자와 설정
 	// (GET /api/v1/me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
 	// ListResources 도움이 필요할 때 연락할 수 있는 곳
 	// (GET /api/v1/resources)
 	ListResources(ctx context.Context, request ListResourcesRequestObject) (ListResourcesResponseObject, error)
+	// CancelSignal 이 신호는 아니라고 표시한다
+	// (POST /api/v1/signals/{signalId}/cancel)
+	CancelSignal(ctx context.Context, request CancelSignalRequestObject) (CancelSignalResponseObject, error)
+	// UncancelSignal 취소를 되돌린다
+	// (POST /api/v1/signals/{signalId}/uncancel)
+	UncancelSignal(ctx context.Context, request UncancelSignalRequestObject) (UncancelSignalResponseObject, error)
+	// GetTrend 최근 2주의 변화 추세
+	// (GET /api/v1/trend)
+	GetTrend(ctx context.Context, request GetTrendRequestObject) (GetTrendResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx *echo.Context, request any) (any, error)
@@ -2610,6 +3910,31 @@ func (sh *strictHandler) DeleteDay(ctx *echo.Context, date RecordDate) error {
 	return nil
 }
 
+// GetDaySignals operation middleware
+func (sh *strictHandler) GetDaySignals(ctx *echo.Context, date RecordDate) error {
+	var request GetDaySignalsRequestObject
+
+	request.Date = date
+
+	handler := func(ctx *echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDaySignals(ctx.Request().Context(), request.(GetDaySignalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDaySignals")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(GetDaySignalsResponseObject); ok {
+		return validResponse.VisitGetDaySignalsResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // ListDiaries operation middleware
 func (sh *strictHandler) ListDiaries(ctx *echo.Context, params ListDiariesParams) error {
 	var request ListDiariesRequestObject
@@ -2701,6 +4026,29 @@ func (sh *strictHandler) PutDiary(ctx *echo.Context, date RecordDate) error {
 	return nil
 }
 
+// GetInternalReview operation middleware
+func (sh *strictHandler) GetInternalReview(ctx *echo.Context) error {
+	var request GetInternalReviewRequestObject
+
+	handler := func(ctx *echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetInternalReview(ctx.Request().Context(), request.(GetInternalReviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetInternalReview")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(GetInternalReviewResponseObject); ok {
+		return validResponse.VisitGetInternalReviewResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // GetMe operation middleware
 func (sh *strictHandler) GetMe(ctx *echo.Context) error {
 	var request GetMeRequestObject
@@ -2747,187 +4095,402 @@ func (sh *strictHandler) ListResources(ctx *echo.Context) error {
 	return nil
 }
 
+// CancelSignal operation middleware
+func (sh *strictHandler) CancelSignal(ctx *echo.Context, signalID SignalID) error {
+	var request CancelSignalRequestObject
+
+	request.SignalID = signalID
+
+	handler := func(ctx *echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelSignal(ctx.Request().Context(), request.(CancelSignalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelSignal")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(CancelSignalResponseObject); ok {
+		return validResponse.VisitCancelSignalResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// UncancelSignal operation middleware
+func (sh *strictHandler) UncancelSignal(ctx *echo.Context, signalID SignalID) error {
+	var request UncancelSignalRequestObject
+
+	request.SignalID = signalID
+
+	handler := func(ctx *echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UncancelSignal(ctx.Request().Context(), request.(UncancelSignalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UncancelSignal")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(UncancelSignalResponseObject); ok {
+		return validResponse.VisitUncancelSignalResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// GetTrend operation middleware
+func (sh *strictHandler) GetTrend(ctx *echo.Context) error {
+	var request GetTrendRequestObject
+
+	handler := func(ctx *echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTrend(ctx.Request().Context(), request.(GetTrendRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTrend")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(GetTrendResponseObject); ok {
+		return validResponse.VisitGetTrendResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"zH1tdxNHuuBfqaO5H+xZWcjGmR18z3zgkuSGnTDJ4eVkczHr7lgN1o3UUqQ2gzd4jzAdRoPEIgcLiyD5",
-	"KovAhnhOFLsBsTEz/2U/qkr/YU899dLVrWpLJgm5HzKD7e6up5563t/qy9hiLpvP2ZbtFGNzX8aWLDNl",
-	"FeCfpzKWWbBS56xiMZ2zT+Vyn6ct+vuUVVwspPNOOmfH5mLE7ZGvGoj8oz1Y6+DHB4hsl8g3Hq50Jowz",
-	"5rWpk1esPySNyUQsHitYXyynC1YqNucUlq14rLi4ZGVN+klnJW/F5mJFp5C2r8RWV+Oxo6yaQMYHjpP/",
-	"yM6s/DM6Z2atc2nH+sOH5rV/Rh+bztIfjhmk5fX323FEvvFI4wbZrBG3iW9vIOOctbhcsIx+t4TwnQ2E",
-	"XzzAtzdwpZOYtwX0Bn2QrUdaDUTaLtnzECk38LOvSMtjDx9pd6vxWN4smFnL4Zg+ay3mCql3TUez036v",
-	"i79tIbzWJtvNBDI+/fTTT6fOnJl6910D9Q88BkEsHkvTh/OmsxSLx2wzSxdM0Q8eBtg/FazLsbnYb475",
-	"NHCM/bV4TIEJIC5YxXzOLloA8L+YqbPWF8tW0aE/LeZsx7Lhn2Y+n0kvmhT2Y/lC7rOMlf0v/16kG/ly",
-	"zHU/Zm+xRUOH/s0G2fsbaXmI/kfR7/bIgxLC21tku4RI/TY7PDRhXDUz6RSAsXDZTGeslDEZW43HThVy",
-	"xeJHhfSVtH3W+ndr0aFYeXsbwJUOftxD5EWT7AExDf53g7Q8sl0CAtz38FoPyV2ynSxSkBdyAPNCgQPN",
-	"dvOnnPN+btl+q1vov+xxWiSbNUS6f6fcwWgUDmbzFgPbzjkLlylwDFTxxbcNafc+8Gyjgx83Egjv9/Bu",
-	"j/7GWMylLAN/20T957v4hTuoNykbrcZjZ03H+jCdTb9t0nDLeNdDZKtGHh0gUmniu+7gfpkhs2A61kKG",
-	"AWVMxuKqlD5rOYWVqZOXHaswLDxwpUMqTfG5eqPf6/ZfVSmz0COrdPATDxGvfKiQyKbtdHY5G5ubjgtJ",
-	"lrYd64pVoPtYjccu2Oays2TZDkXOW8bat83+yx5p9Qb1BhcBpN7o/9DFaw0psz2Eb7Tw2i7D5XIQWkae",
-	"F+x8IbdoFYvmZxnrrRJp92tKjiDIhSDD21WEuw9Jy6VaBliK8hh90ouUbglkXE5bmVTRAL687+HbNTSo",
-	"u/hek7R6FDe44vV7oCwoGBw2CvrJZWfpLDv+rDAD8oVc3io4aSbuF6ng538Jw18iW1/RJQd1l3yzMag3",
-	"Eb77gLQaVDBTFqTCrVdGg2otgfCzHbzOHi03uNpyrGxxFAJPsfX/tWDaDj0uToZmoWCu0J9T6WI+Y64s",
-	"UL23kDWvLWQs+4qzpOGHFyUwUVoefuKCZHjexFXKDSWyVaPojsVj1jUzm6dkMJscpniquovFP+cKqZGn",
-	"zp8LoJZpUsFqF/2PxX0kR+/nkoQn9xlVBBQcdnpMNw+f3HKRiYXDAL1QBFYOAgYv6tYLnAVlj1QqTbFr",
-	"Zj5WVr5sZopWPATM52k7NeZR/5E+uhqPXbUKxTTjtZAtsLZLvnlKtmpcc/b325zwgAR3e8Rtgoat1tQj",
-	"jc0kZ343lTwxNZOMxWNZ89qHnFKOz8SppBM/+rJOsUlV/MBefPgOwdQf+a5DlMiYhJLg//mKKqd523Cs",
-	"QrZoUOqkW6u/7nulODLyhfRVc3HFQP0usHK7jvc9RPYa+Mku7j4lr3biyChadjHtpK9aCynTMQ2Et8uk",
-	"VaV82fdKFCNCRTf4m/F528hR6C2zuOAUTLt42SoYCFdLgwcbCK8BCFShP+jhFyV08jSiJvMrl9zuUK1J",
-	"reBb3+Jag9z30KDukQc9ZlULwGoNEFp7N5lxbNlUg1yMwRZjlDBgU7F4LAh5LB4bgkpBrjgMiVzFrgji",
-	"1+DstCAOzSCtA4TrVSpdyVaZSZ8gfWbTxSL9/NDHpGzDd7rUmBCqhopsOMcjCjJB3WE5llt2UkKFhsj9",
-	"wQbXDL48heOpu7hS5VAkEBPHqP+ySV49oAqEGwBUndRdRG6WOWtQKYj3PbK5SzoNUj9A3AD6OfYR4hSB",
-	"VWV7EdxCDx602plcSuMJMdoE+V1pkq31Qb1NDxT0Z6+L96m595RUWgq5Xc2lF6kLtLhkOloyejdtFla0",
-	"Cu9yupC1UgsmE3KZzEeXY3MXD8fK+XTWKjpmNh9bvTRkqWyX4QD/SpoHlIEGD+pgtoBx1u/eSCCQW3tl",
-	"fNeVf1RsGvraUw/Zy5mMdPnoD8xgoTYb1YPcgxzXr4vHio7pLI88bsDSOfYoPW7rmqMh0Zs3BjebVBwb",
-	"qYJ52TEovMQrk3o5Tu1tjlH4tb97qnmFE80eBrLdruJ7wGb42Y+AmLU22axRkYJflZF40EOksUPfRQF1",
-	"QLZvkPY6Ind2qECSyKQL41pTOuxDxLCcB/LkZz7mSYeonfvcHK8cV/EgQQVW0vEC4PvDNPOug5Qp2XMs",
-	"PmUHt5zNUiofxajsi5HwnJOkEpK07LS56uBaAA6w7R8UVc/BM6q7ZPuGjtLhPBV6Cb7HXwDPKKhaAAwV",
-	"1dEMLzAyhN2jM9DldKHoLGTSti5IxUX1gw381KO6mErc1gGjeaqIv0Ok4yZQv9cDXtlq4NYB6NBOCbAQ",
-	"oHUg31dMgG/VyKYf+hnaZNFO5/OWhkf7eyVy86/kvgdW01qDNHaoy4mf7AJA9S38dYeCl0DsSdTf6/b3",
-	"DyjrqWpzeMGji5ERfKPgNZIiL+TFeR3BCI0QXq2Dfq9Lt84DfEHrcDqZTCaPZiDCOjrQP8xB9ElGz44A",
-	"u5U10xmwVFTDdRRgQZclsKuZ2aNtigGgfFC3wTMaP6RoOU7avjKSRM7x5xSZ9dNcmLi/tA5W30kzizo3",
-	"A79ycbeE98qDRg9spu5DP9QIlnqzDaZ7LrdQXMoVqBzkkZztbVzpxBH8KZOzr8i/UHaXf1nMZbM520C4",
-	"7Paf7+K1BsI7B6RdQth9RG1rvO/RlQYt5lqr4FQ61IjPms7iklVcgKMB5wE/3aBShjw6ILeq9Ivghte3",
-	"qPP7wu3vH6B+9wGDIG1DKGHBshdzqTSFkXnCYOK3XodCELi7QVre4HYPBPjWsAiWWKAygm+b/5PtE7hK",
-	"gRfi1kEQtFJb60sPERn1lD9bcSyNkpJ+fo+0vAS6cP79qd/7+4Htuge40pkY1JtUCAjTZAtsjuPyyUnV",
-	"mZye+b0uQJBN25EBCPK8SW5VJRx+3MEHIbCCJgIxZF7L1eIKBrTEHuUsnX3/FDox+85/9WOlIlS6WeOh",
-	"UvKghIwCk1oL6ZQBzHAHiLK/d3PIlVrkFvwYYbFT9NHVeCDINIbvIYNqVFdYmZTm0GdnZpAmVqZzBMey",
-	"pviS79PldO5bAYSIzkT6s2V+viCE5k8AICittCCIE9LpOE8mFxro9LsJRFrruPIc4uH/fYqrpKnTKQMN",
-	"Njv4zgaE8EBUJBCLm3OXC5F6Fbc75BH4JNSd3HMRj8XyKED371J4jGE1BAH94Pz5jxFzJxB5vYHvNTkk",
-	"1OHud78OxOhmZnQ86KSdjC6Z1m3iblOYoK3XIMS3t+l3SeMGyNvdXv/5ruJQkM1af68qnOVHB4FMUyC0",
-	"JE4HpXJWEdk5B2Uty0HOkoXyuUwaoh1DOGC/GDoqxoQsNERZrd8t4Se7g7UOhfjC2dOIdHvk224CGSIm",
-	"XTz2JWW61WBW0IfOfy5AjLGRdgz9q0CoYqABhwcI7hCRc0rr0LNdKjEwFuQuUcGMS9UAphPCjKZH1fLg",
-	"SeZJk3oZr4mDA1ztt/HjHt+/CASEpYCieRYLVsqynbSZofsK5QfoTnUZOGqi5gqfpVMpi2o1me6iQthy",
-	"lnKpBforM5PJ/RkeBnW34Jifw+N5cyWTM1MLoCTNwhULFi4u5/O5AvULs1YqbS5w1IfPKxzZoqegJIhg",
-	"Z45VsM3MglUo5JgNVLiaXrQWlm3zqplmQQOtnlUl3LAxFJGUQODqgWSRKYcGD7InEPnHAX6yi/B2h3Lf",
-	"fomUG0IA0i9Q24SH473gmQkLQY2GAyVmrf+Zsy3fuf5Cu5cjJNVxZRe3H/MfuXeKK2XcOogrgoDuqdLs",
-	"d11cLQHh3SzjvddollQgF8qIFoy1egM/2uExDRCO8M12fVD3QDhK6anmdRKIPHxF6j+AmIaYkJClLJzR",
-	"33fJWtd3lWWhQnR8+3KukDUdvxJAg6NibrmwqDHYA/gaYtz7PdJuxiHNdL+D8F2XPCxB3EahkK0yvr1B",
-	"tkuAmyoEoQf1Jl6vMQ/2cRDsWYbauIhvUmyCEeqROnXNwN641yH3PdJx6aHgrSo1Zclmt7/XxXcPyDcb",
-	"Cd0WtZpwq0Ye1iikAbna32+Tdh3XmpJ2hcyBQCuF5XUD3qISxuNpRvzsKUTWXdTf26XAgYK8NySAi8vp",
-	"xXTKWsgXrKtUvOTshenkCR3IrHzjS+VdCvCaRxpl3H1Kbt7AFY+03cGDDd3b+aWcNhgBLzDXIaHEJPov",
-	"e5yepYqDUpn+Dz3Bo6T8HTWEt6sIr+3093aQ4ViZOUg0YveRRhNq9xWONqVEoYoAORgy1WkTQa4jQmNh",
-	"Xv8rWKn7++wctyBBCnHDce0uySZvHkILO7ZD0Ju2mVkpposLlk3Fs0783nAhBsTibA+oHgTO4OfS60IO",
-	"DBI/iFTawmN9vR42WThwn+VyGcsEMzJlXTaXM85CdgyzfShQT10eK5srrKigD6+RzeVSC/n04ueHP1aw",
-	"smk7ZRXGfIpqAw2x16v4yYEMrUsZ7gtwKs3x3mv6874r5C2LUxoffDB35kyUHTWTnEsmQYU7VMnG5mL/",
-	"Y+JicvrSxeTUiUvXZy4mp45fmpy7mJx6h/3qn0ZywtCOw9sLnU98mFaGTkCHbi1Zpq/Yy/k3i0ZFVwUY",
-	"//reeXTMzKePXZ0+Rs2pYwXFcYdqO9IRuTMuQCF39Y0HGbZAblcmdZmf+UYFA1nz2mn23vTvDi8fGFEz",
-	"kED4lUseVhFebyjeTULGTvef4+4PoArvUzmKZpN0H6zmBncfSh5UwnC/T2qk+NsP9SmW1RAOTp/800mf",
-	"dzguJkijPIeMk8W0eeyclVvOGJMJhHtV3Dog33RJG3jMOG07mQS1ws6ns9b7YJBMTCYKVjGXuWqlPoIV",
-	"ihOTCbr4v+Vsy2AWkcvL4ZiJwywqyPTtvaaGEJV+Ko+LokDfLWDmEs/3sI95IsnAcmkq5Gohp4K2380e",
-	"OSKqBDJ0DOdnjoaQfOH8KSmxMNglxCsj4vZ4iF5UbkkrJUpACQvw/PTMXJKKq0Qymfy3sD04xWVLcH/x",
-	"2LWpK7kp/ssL509RgKFEiodhQzKgYB09ZXZEjgPD+Uip0MP4KcJAlKhZXk6ntHZkcSFlZXMaaNcb+D92",
-	"8b7X73Wp2GLkxzOY9z2y7QIttuusDkurf4/IeYHz9ql4PJtrtFslthpXj1dHzJ8UT54+r82nnDwNkn27",
-	"Bs7QWkOmt6FU7NZzss2CrsIMC1IV87XHT7x/wmt6NXl3g6rMjBFHxuX0NStF/+FY2XzGdEDSCJXDoOQl",
-	"oEXri0Dho7YMTOSRIiM6wo010wuhXNDhkRa6unRtOSb0yD+VSVu2c8YqFs0rGtIZ3PCoKG555H6PB+15",
-	"eQ/5wcVujdv8eA0yDPjpBnVkt0sJZNC1DCFHqSTqslNKpen3s2nbdHIFpmHyeV4xY9mp6ON5DwIjRccs",
-	"ONEPnYM/s4QPQ1nko1QYAeGtStJZ+RMregc8rcZjOdsai3LYqqvxUc8pS456lO529RIcEeQpz1pmaiUy",
-	"56gUM3RK+JWLazWWAleNqFTaLKSt4rEvqeReNXh+RloTQfYpQORj4ejJ7DDp0lVXFgoA/rjkqy6uJ9v3",
-	"WD3coZZm2PNp4TUqXxHecwe3D8A8KFdxm6XJWYwF+jksO2WlAD248lzWNIUywKFdUsodb3eR+4lKHxqU",
-	"lg00An4jncpYBkRH7j4g9TKVm7yYntwX8XVg38p3vEAikHbjiU76FW0kDEDUepQgDuDLokI6gdjKEFX5",
-	"FppkoDGGyokDGfoDk4rXlosIDRWh7Q4kBG6WgUDhI4O6hwzgfIMXnTGrbuhYGLFZ1/KyLeNQdhFFQlBZ",
-	"slXmRgHp9mQ0jXMT1P0YCikz/6PBA3T9H7pk+x6vrxAfL6n6uxQKRAfrUaha849rs8yiQnEFTmq93X0Q",
-	"tAv8HDJ35xulcF1SwNsV5DVS8PipoZ9NCgBPHYH/AYDg+vHw6UZwEoSrh0+eJ61cXlzKrUH87EdeBxQq",
-	"LbrnsRIbqHkPBz9C9iuo0IUs06H6tBmrpYcvKhDgSgfhtSYSSYweqM5+rwRRyZs3+l6JB8n5E6x8jXGP",
-	"aotHGZzjpFA5ykQKdejkAJ/jnhwseMjB6JM4soaA49BA/+3cR3+StamSH/CzHfwYLA1uXrQ85U/k/jp9",
-	"ZVAp4Tb3+QxxKDJJYvhGCsgsVk4xuLHLXwi0yaBgRw2VOzc5sWy1oSb26w7EP1la0RiiBK5FWP2s4otC",
-	"axMINLqKEG370JohajdYn5eEVgi+m7xkwjAzIImGP0MfXK9RQzn4QiA5lEtZBo+Ts2zZwyF5wkthpVtr",
-	"LCpRuwWmJcGZ+L7HZH+Tv8gwNI4Ap18NJpoMkQomz15DkL/NnG/OjKRdIluPcU115QI54sQRDsPDd91A",
-	"Naeg+RA5QmgsREfDCTPlSGPxWOh0wrk5FoMbRuhw4k2vjD+S3k24RLgm1Vqb4jCBuP0gxVsccX9GHPPJ",
-	"09KzQfj7Hn6yi8idHYTXN3hCNA59BcLhCSSzBuvNQcOFJXmtEVuZBRjo+4NGXWtpAAxQpHcNti0WiNhw",
-	"hP3LiQocxcpzZngEWab7EOibMyoTwKoloi/jD5zMmN79GyvLAk8NFBfyadu2IsougrWxkC5DfhJKScYA",
-	"6inH4fUa2eQZtIQwa556qL+/DR6dhwy5tGLQRJgPxeWsFrRND7c7gMc7DaTU18MK1PNjPRzCOvKNq6DV",
-	"dLMsdsgi6D6QUONaL+MXILEN7gsbAd9fEw4J6bEoDyQeW3Ycq2Dai9qaL3UXAr4GFZwg7rrNwYONBCLl",
-	"Jt4rsxSYEH4CFVBx68I+jlSn80nxgoBrZMpIKt8g0YbtJ3GGgS1ryE+vv0UCS4MlPfE1glSaUHhReAVB",
-	"3wHqggIRSvYhrdX1a2TqdFQlkDKuhRSd3vukeM4qXLUKkcEYxYn75WIwItQUSZY8XBcPePaRTyvBizj3",
-	"Ag5zPVidCzPhDzVXmZdw2MpiUf+IDnlUPBKPOUtp+3PARdTT58UTPz1wxGAcHQ1Slhz1KD+e0Q/6mx4r",
-	"GmWlxnhOOe0xPgrnyINc5/KW+bm2/bzsBnxkHv8OWRNmOsJuYKG5I4aKhprEuFRnEY1t6KjnsWjFlkVU",
-	"FT7pKlJNiSkwazjguYOWe9nT6EyXhxXUCiPWlFTCaw1816W/1ipeGDMipQT3JFjkaL+tqqXHUPYiLd9Q",
-	"ETT30saLnA8n8y/pMcodioTidxiLS6Zj8G51ERzhrk+/+zV3eA3mGkwMuzCTitmiEc8sWjyuaM5GO6+S",
-	"ATUKR1Yt1V3unwzul6GOovIcnBMIIg3qDR5mYnukzzfoTm9v8IYkavj0utC7JwJ0AXOWbbUTTEAe2fX8",
-	"ieELvxALbDrOjSNtY54OGZ6uIb75ArbBDKlYfFTeJHTMUmaPHaYY2jMDUX/4Mmx/NDGiCyjxJNGbHIIm",
-	"FdPvlbg0UuULmFak0sL7LtmqTRiLhZW8k0sUTDuVy164cPrdiUljEhpOONoMQcCiV9ILEI5fZymrp4Gs",
-	"73mqvy2mUDA/XTSiblely+672SOpJaK/aqg8YrPEG83gV6IWHobJsNCdmrHXlU3MjG7JGqY2P7f0U8gt",
-	"srdLNfx17YC+4yHzohFeisFC1cBfFa+/txOVKx1HBKheP2+4feopBMJYuOcTHi9pgRZNLglVGmuKOGd/",
-	"b5eXsULdDqcqmfzlCwUy9WECGpm5f8MSAz+HPF7mOELOCWu9XmbeO3iQIOkSKIlflAauSB6TjadIX6tO",
-	"yk2q2ANVltDhOVJYFn3LakQWkz8YnZgOUTfLMovvS3T5Dcsasj+0GgAQuLhcSDsr5yhYou/v0DFucn4P",
-	"60qD4QWiKcVDpLLrz14TE+Z4igoKxksId7uDu7uIuB0osHAR3uiy4v/EvP3B+fMfn6Pu6nZVcbLYsxNs",
-	"FNykPwuOfVS4ncbCwge5ojPFRsMpY+HEqLVFtiU5bM02rXRmge/XF4xmPv1Ha4WN/knbl3X1I2vQFKwU",
-	"f9/rUnjOvnfuPDr58WlmcjzbgdDc3mvufhs8M2xAmH2rAa6yaMmbt3/zG0QV/JPWvK3OSPLbdUCvDY3u",
-	"A4QzFLNf0pXEbD1DdCff7gxu7OInr0XnXKBREIqH1SowWAkyOELf1atUtLhB20bsv4QGt9qDG134JKt8",
-	"p5bWo51QFo6rLj5LjUfWXpTwYw9/D4xmXLacxSVDHQ9x9wHZWsfbVdE5AnsE+Cod5mAL5AUntfE6/MYO",
-	"38i8zbqTWJByo//3HhAQ/G3i44/OnY+jjy/Q/zl5/tQHcfTuex++d/69SaZpVaiplFQw5Y9+E6XlYTSy",
-	"aR8hawJEkniT3Pf8cR6JeftII+dKyJhNHkf6kXMQiPihS2Ue96kor1E0VjqiU3XtQJ5eSSSKOUYFd2/u",
-	"ivIutQuCMb1CrFx2sl5WVtlH3+cTZ2Rzgf+VcJKWN6jwyiuPcs+gUgIfT22ipUzFzfDZ5DTS9AQZIqj5",
-	"Qw8/YQKJlWPddUV33LzN52BRxT2bPIGUbh/qIMHJ80YXuSGefRnaF3MrqM6udIAJ2A75SABSr/b320Ds",
-	"6zI2q4Ag5lyw9gmJTmhqkAM62HQefKcbRwwedSIJDO4h7TLp7gDN8d5fqEwQMzjWa1QUkW+6rDeN0TST",
-	"2zzNfZcBTe2Gp3iv7s8G5J4Rl2QsuBUkDAGIbH6GXboI335CXmzIX5REh/O+K74BFRTuhDE7cwIFZ+bh",
-	"f9Qkonh/tHTcELnZohLiqSAyUCxyi2JqWXCbFJ67goCZUw8NQDVVAkPid94W3Xz8zZL4ohE1Ws6YEB25",
-	"kyLg7lsUfHQhS8WBWxrZAAeOQtrJWAaTPeM1P4bHdRzaAZnQbI+Lk4DpKqt6aw2GN52BD4i7Llo/ryO6",
-	"U3Qd4eaP6Pq8fX1qakr+R5+bTSbRdV2HL7qOxp8V6iemWe9aXMiJwU1KDHHerI2IV+7vH8RR/9UO2XYh",
-	"yz2JOBzTFA6d7KCQKEwPQl0RPxAdkzlvMbaPPHvNvHM4Ia2ACywcHmlIUXbUwYj8e8fp9/Tyn371yPNL",
-	"1c/KfskAgKDx75f5dKtBva32F3Ks+R+apR/yZ4tS9HJBD/JEKSoYa1BpAuG1HWEhfNuiIl1+7ya1SXFj",
-	"Hfje8+vJBCjvUFCGez0pTBAcAYAAL8H8/NMNaoHdUz91gn5K1RmcbBT10AzSkXx3GlA71E8KKObTTr1g",
-	"pYR48R1GOrqm0+DbATEF4smv7vC/NzMTyYtvMOTyCOMsA+sHG+3pNkLcxkejUdkUkgQJ8LmLOZuvCbM9",
-	"WNWdbqWh+XLo+tAMTHj7VZt8WxWcNzy8rSznHUHTgLpfMSNQv18gmmDJy3UUPUY2gQxlVKxs8ae2o1fG",
-	"29XBjQM5FLYrl3mHidhwncd1baWHeAVIUtNyDO/J8LGopGoHqgqDxTmh+bViEaZdoVVi3hYNIFKtXjh/",
-	"SnRyRfVCKM1doGqPHz9+Iq5tuuDJzElpxqpxfWrKHPR7XapYlBYVLmRK6vp8xUbwA2A+g2jihTLq36iw",
-	"iGhMVppihLE4fo9yTdb47L1G0/wvQLR+HqLt0jWVzYgRbVxDlekaQMMivKxAriiv6O5nYc++Wc8zo4D/",
-	"WyOV5rzNnWNugFDn/ZS5uGRNncrZTiGXmUN2bqro5MScd+nMK2/w2ZrqhhnHdaFqt15lslD1ENU0Lpr4",
-	"xPrsXG7xc8uZnLd9PFIfPtBPjuRzwgeFdlslgaK6+H8uHrs6fUwtDfAblRSzhnodedNZAuHBju+GIlip",
-	"S0hRurlLSZVV0rAZnjfYUHwFBD9jwTrzWGEeGJ0i6pTgUScWm1znB6JrNpAhF26vG6GWBSOuJrw0Twdy",
-	"6oZA/hT67W9ZcOO3v50DFCvjQYaDRUMuN0sFCldmyMUWwQlSeSTJDUUYVCJDyL5IUd7YFU6iNEDBsQzb",
-	"aPFDjCnBA5se2RRJyBGOOavhk8CuNxBEWpru0EgfPv8JHAIhA1najmpkBRvM0+0MqjswpZJvsTE8mEVY",
-	"Cm4gMiTm3WldBiS/57HM626oNU/tfciyQe3yBJAffJFzJNlnKWVIAqbEMfjqDoXpdg8NNlzcLpMtV0Rr",
-	"N2tgwqN+t0X2PL8BKFR6ERrB0pXRONVlYMOxHoZ3ScFhLimFRQImIKBHfmOXqw+lCORVGd91uUzGd11l",
-	"2BbCriA5mVYdrpKNh8yCyUC9O+Co8t1gq8GPkMKmyGlJyrjyHfwfTDPohqyz6WQy+b9mTpw4AUhYb5JO",
-	"Cc6SSvmmeLB1QN9UMuYywNlTRkRQNy7JS7AeH4gkAqURYzaZnDaUsJmI5jQk80gqCifiAzla3PxR3ABC",
-	"vzljBEJDcGPJwypp96DVQSRkyopd4n9E0m8LyqRYkblshLjv8agQQPuqiit/EwERivIyD03qhCX/yNZf",
-	"wnFO/xoDdmwsCHFAaYmK+R7IS74In4MtvxVwq3H36eD+Y3QdUfo+xK0OQYf+362vhbl3XVQC09cjKy0i",
-	"KymiKybQGCvL3B3YkboE7RgfsZjXeGhHDvsOf4e+Hv7kdZGe8xEiq1iFXSBSafGgbRTXJfxwi6mRQIJw",
-	"DCBkEpg6WW9SyzDOIqJmE133E3vjYUiUp1LPaJwqw3G+ykvXryNN79I476t9QOBlH9KDNxY80iEa0aTC",
-	"/JZBq8YzV1SWtP8iuHM6Iavt4Xi0BfdqoxvbQaDRDeRSqHz1CJW42lQ0qBpYK+HXnTIfVSVW4SZDrK9D",
-	"BS3Awt8MF6myeuVxS5oT8/ZMQpC3IgRk6WQYN5z26+BFKkwihCRoBtKqiuD6k12Ws+JJx0DbmERTqPMB",
-	"IcSDnYf0NScQ+bZLfRq+8FoDl9sRcU+KLaWmw1OrhaSdecSCIYSf/QVgE2XzTDuNqvI4nlDsAeVIJA48",
-	"Kcvl6KNDqoH1rM8dMGUoERBd2aWGlZ/AYEmX/l7Vz2jNJtBx/MIl33fUxrvmQTC3GSBwWe+3+yObbfSy",
-	"h7ca0EES/gIXMBM8FjSHoDdzMnz+7yQ0KqTE1Es002q6UxP8t4lgg1yIRQ7vfRyycpggGKf/kR0jC7aM",
-	"bDj2OxpF6zEXOb4VJqoWb/f3DihY4aV5P9ywjSNGTbXEsC/Ses2zirBL/4i1ASIFoN8lVIAoJDtw0tIp",
-	"9/tslTJMtaM1su3JU5gwsvJTzHyTtUwum5P2I1BxtYYrO1QjQPrS/3LEsENPOKSQ020o7jFeawhJvV2D",
-	"ULWqStV8F9dRIjagbZUcnZiRMyBlxcLJj08rN6DMxZKJmUQSSm/ylm3m07G52PFEMnGcDUtagnqQwFCg",
-	"TI5X6ORzRe1Mbh7wht2FBjHLbKWojRVJDVfUxirRnUBQIJzv97NVQ4/hjR7Qx4MNxYAVCzEyZ1O3KAA8",
-	"8S2UjJ8LZE40xJbAI5iQyQ2+v7guM83KBfjlZMGxgZqjyeWtAgSITqdiczGGWDmc819yrP0q4lKro11m",
-	"FRhfvhosK+LXUASuCpxJJn+2tQN3HR12HRiz34IXpZ2znCm/Dkm3DH/4WPDuSVhnlu1C95bc7THlVkR4",
-	"ZfqtXo44bpoRTWgzlZMM5uOjt6m7RJG+O3Ni9Lvq7Xr+3LnR7/kb98vMYnMXL8VjRTFQzz99KqrMK0UY",
-	"vrLsLMUu0bfCkie37BwieliexpcplNUpnw/fchq0sl6U8X/sgpUFFydAxolPUPazrmTzlsgHKR24uzx6",
-	"MJOcjWZrCvUQg81GFtbVXfLwphgoEgK+yy9AFVxhBATjm/KO9tJYzkJvTlu/BJ0AbkaTSiE0cv6K7l4N",
-	"ldl4ipHVCvCaHDY1m/nmiioPXwIGY82UFKGsMemU1BofzShkqvZYQBayPHVSd6GFVIm9sfC/Ky6D4vV3",
-	"ysRP3uLnpyJ51BOqc6SS9OeFqnVfvQiSvWI5Q9cL/uIKInDfnubKReWOrJ+duEInpLPf2MIjCa8Ioxmj",
-	"ZZSIX6rOQHTZl+wwaL9F28iLoAq+tV/GQAmOtBzLQpl+axYKFwg8Lvefy1z5Cao/eeJtmzqHlsZMBIpp",
-	"mGUzM/NWL6Y9pLRl3g6VqUzIwpPJuKawZMKXyPTvwyU2E6JWZlI30Y4y4H8G84wd16FyL2WuiIgDk3cZ",
-	"Szu9/WWPVyfICchKOU3rAPkPMC89zsOU8eB4ZHFFbf/lQf+Hbly8xmvJ2e1YVGfefy5CWfWd/o8Nxfab",
-	"t9m/pVPOnOgnXrCm5cUGcVl8a20H3DpWYyAyQxB1CMwrnbd9FY93PbL5F5iO4y//sMoqLEQJNMQw/TjX",
-	"HdGXGByhod4AEhywOm/LzatRkUCfvzaPAx2PAbBEA6w8g0DRnZ/OnkV+HZ/s6vi+x7EL6RL/AktusbY7",
-	"aFBnUcyXPRk+H9IvjHDeNVfGspUB8DbvQn1zR+/wV8KXZP9kiTs7+l15P/wbs7JkXl5rpDo+CifzYGHs",
-	"EgwgLphZywEtFtF87D8SGKZySZUE/ItRBreRzdnOEruV6AvNIM/tqn+JniiGeHQg2ir834TKDmaTSTQs",
-	"X/3CE74s4OGRzwqVXUUYPT4QZVDlZqganpc8wXNqbT0l9ZKIpgMH3hLJeuMLdTW83+NlSrLm6YAV9VCR",
-	"JXpy+eBsGF8nuypZDT153uy/FADy9rWQj4EQadyAgg4IcpJbVXbjoH8NTbjVItjbWRKjr9XCtqEmT3ER",
-	"ITihszMzKFqtzaGLX1wyJiV0ETdHUm8IItRQxSvXpgcn8hQNZPj3CkJhwXhXNMqRgtFXnJJWY9Qtp+HP",
-	"6Tz8dNF5l5P+ECuFLAweGK+8YDUIuwlkfPrpp59OHTa6HqoRRQfbF8tWYcVvYAPSjqk3/ysj7mGU/Zez",
-	"q1MTyYvTUycuXZ++mJyauTSpnW4feetkxMpfBFYNXrs46n7CS7+gN+lfw6o1QiElw0grgfD2lj8sSVF0",
-	"cGMnJz/vV9AxzOwd9V6+kFu0ikXow/05lEUzKBM5BuIIN2o+92sVyLAOUAxCrSoYsgapAA4KXB3bGiw7",
-	"6DddR15cO8TXugtpQ1cZ+78V08sASpmjhSVFQ6YyPqshr153eV5J9mb7JQrQrsTSDuGNMWVD6i5PR4Xu",
-	"UmCrh6rmVFstoJsOsdWUfO/2X1n8shFOT7Ku2s66uO3prjveVFSW3WqPtPKuWA67vvuXFgFaRz6Esrdu",
-	"O/4a9p+y3Z/d+IvH8su6yCprKmK8hXSEimuNEC/43Mr+zuvSJOn199vkVSM4yYfHNAVrtDnFSpuq5QZv",
-	"SpKek3/tl+hKlFcJ+0nYkIxhrmXwqh52v+rQtXeR7MmsIFbe7ee3xV3pcjBfOO43Pv+RzRpYUkKAhNLz",
-	"/I51pZSToUNIttDHGEAaUQIb5OZRlCEpCnoibElW0DLaiqQSXxqSQ+Ikv6yIk58/LKneWP2W06aRQszX",
-	"Ur+SEHuLDvCvYgn5/MJkDgRpFO07ygRit6NozR6opXYR2fRYbilUHc+7xlj2gfdR4ztdwdR8UstscloM",
-	"g5Hvc19IVhT7ExpCbaPcPJhNTvf3D2QU6ChJxgitfsb6JVX6mcNLB4AbhMz7KdT9E0lHDxBkCGGAiUI6",
-	"WStINQV12qeeeOACRzB0Nz21Fn8+Ji5z9GQ3I+jC+ZiS05J5Q6AqxbtJ6PtkXNZY68lTP2TS5xsUBU6w",
-	"+wgnpfqBWqjOOstbDTcYqaXJ/sBhv3BfziM/xEtXx07+YqQauO9QR7SB6ml2ED9/ulxPEFBm1Xot+ze5",
-	"Lt7fVwhTmbC6GlpiaDTQxUvUBuRvfqlNm8V96pL/FFl8HkqAnMJwBELPTIC4SlsJgViad3mIbetxQoTN",
-	"9hkxb1Xj3JONUxSQdj3Ou0ARWfsbaTf9DwvhroHs6Njl3/SRu3pp9f8HAAD//w==",
+	"7L1vdxNXli/8Vc7SzAu7rxDC0DMT7poXaZK+zXOTThaQ1U/fmKuqWGWsjlRypDKEJzBLmIJWsBnkYNkC",
+	"JLeYCGwSz7SwhSM6pvvFfJP7UnX0HZ519j7n1KmqU5JMSDLPWs+L6SFyVZ1/++y/v733F4m5YmGxaFu2",
+	"U06c/iKxYJlZqwT/PJO3zJKVPW+Vy7mifaZY/DRnsd+zVnmulFt0ckU7cTpB3T691SD0b+3hcsd7ckjo",
+	"doU+7HkrnSnjffPzY29fsv45bUynEslEyfpsKVeysonTTmnJSibKcwtWwWSfdK4uWonTibJTytmXEtev",
+	"JxNHGTVFjN84zuIHdv7qfyfnzYJ1PudY//ye+fl/Jx+azsI/HzdoqzfYbycJfdijjRt0s0bdpndnnRjn",
+	"rbmlkmUMuhXi3V0n3sED7866t9JJzdpi9gZ7EMejrQahbZfu9QitNrxvbtFWDx8+0uquJxOLZsksWA7f",
+	"6XPWXLGUfcd0NCsd9Lve4xbxltt0u5kixu9///vfH3v//WPvvGOQwWEPZ5BIJnLs4UXTWUgkE7ZZYANm",
+	"2QdHTezvS9Z84nTi7477NHAc/1o+rswJziN3yTbzZ9/RHMVKe9jok+FqzVvZIcN6w1tuMDoYdCve011G",
+	"FHfWydl3UvCnr3dgD/EV75tn3uMWngahjZ3YhZRx8OzIxcwXSwXTSZxOLC3l2JOaXS9Z5cWiXbZg039l",
+	"Zs9Zny1ZZYf911zRdiwb/mkuLuZzcyZb3vHFUvGTvFX4b38os7V+MeHefYhv4aCh3Xq4Tvf+nbZ6hP0f",
+	"IyG3Tx9UiLe9RbcrhNbvIAGSKeOymc9lYRqZeTOXt7LGdOJ6MnGmVCyXPyjlLuXsc9YfrDmHbcZPtwBv",
+	"peM96RN60KR7cCGG/9qgrR7drsAl2u95y30iV4krmWNTzhRhzpkSnzSu5rdF59fFJfsnXcLguz6/T3Sz",
+	"Rmj3r4xC8Z7BwWzexmnbRSczzyaHUxVf/Kln2t2AO9PoeE8aKeLt973dPvvFmCtmLcN73CSDF7vegTus",
+	"N9kNup5MnDMd671cIfdTk4Zb9XZ7hG7V6NeHhK40vXvucKOKm1kyHSuTx0kZ04mkKmnOWU7p6rG35x2r",
+	"FOUv3kqHrjTF5+qNQb87eLnKLgs7spWO97RHaK86kjcUcnausFRInD4h+ULOdqxLVomt43oy8ZFtLjkL",
+	"lu2wzfmJd+1xc/Bdn7b6w3qDswBabwyed73lhpQ7PeLdaHnLu7iXS8HZInl+ZC+WinNWuWx+krd+UiLt",
+	"fsXIEYSRYGTe9irxuo9oy2WSEq4Uu2PsyV4sd0sRYz5n5bNlA+7lRs+7UyPDuuvdb9JWn+2Nt9Ib9EHg",
+	"sWnwubGpv73kLJzD4y8IVWaxVFy0Sk4O2f0cY/z8L+H5V+jWLTbksO7Sh+vDepN49x7QVoMxZnYFGXPr",
+	"V5mISxHvmx1vDR+tNrjEcqxCedwGnsHx/0fJtB12XJwMzVLJvMr+O5srL+bNqxkm8jIF8/NM3rIvOQua",
+	"+3BQATWr1fOeusAZXjS9VXYbKnSrxrY7kUxYn5uFRUYGp9JRimfqR7l8pVjKjj11/lxga1GSiqv2sf+x",
+	"pL/J8eu5KOdT/IQJAjYdPD2UzdGTWyojWxg10Y/KcJWDE4MXdeOdKdrzuaxlz1lnxKe0eo33b13vnit2",
+	"++sdrgmCeLu9miJGCZSkzFzxslUyL1kGlyKEHjyjKx3vnpskBqMO5Ylh/d+9b57BE4+fsydmbcP6nF3P",
+	"nGNb5bJBBt8dDp53QTdYaVL3eYoYdtG2DHa76Ism/bdbeJFcMth36XJX5RuuVLt2+SyZVEaJxmbvNb9X",
+	"dVbLZkzx4wT7PjDQwHI4aav/rc5U2VqhZKlb+5512cqP2FbgGS92B103RYyClc0tFQy2z/TmDfa/Gz1a",
+	"Z0pkk27dIt7KzmAfD6Kx6z1lbD8l9to7qOBOEiNfvGJE1pYvXkkkEzgAEzu5SwtxM/cvKOOZ2WyOzdnM",
+	"f6iQ47yZL1vJEIV+mrOzE97//8kevZ5MXLZK5Rwy4ND+LO/Sh8/oVo2rU4P9NudGwJd2+9Rtgtq1WlPv",
+	"eWImPfMPx9JvHZtJs9Wan7/H2cfJmSQTf+I/TyQ1xpZ6aWAt/vxiro9cSpQ9IedkfOnfbjGNZdY2HKtU",
+	"KOPhPnxG668GvUqSGIul3GVz7qoBh9zq03bd2+8Rutfwnu563Wf05U6SGGXLLuec3GUrkzUd0yDedpW2",
+	"VhmzHvQqbEeE3tbgb7L7xOi1bJnljFMy7fK8VTKIt1oZPlgn3jJMgWl5D/reQYW8fZYwW/ClS+90mCrF",
+	"zLvbj71ag270yLDeow/6wkDBidUaIMn2bgapDJaYYIQBi0okE8GZJ5KJyKxGkaGibAb31+A8NiMOzaCt",
+	"Q+LVV5nIpVtVFElB+izkymX2+cjHpMDz7naZhin4CJPjcI5HlG6CusPCrbjkZIVeFSL3B+tcXfCFLBxP",
+	"3fVWVvksUgRlNBl816QvHzDWx7VCpmPUXUJvVvnVYDzC2+/RzV3aaTAOwrXiN7GO0E0Ru6osL+a2sIMH",
+	"Vef9YlZj4iNtAndbadKttWG9zQ4UGGS/6+0zG+AZXWkp5Ha5mJtj/HhuwXS0ZPSOeZWb7I6OinxbnN0h",
+	"lElcMBCj7JjOUtlg2k9QNAHlf9f3ltugFonXGtz4p81D73EzOWvT73bo7VX48saXcFp/qRDvqw7qWM/o",
+	"y6avCkq/APytSby9KvtD65Bx9EGvQrtdduee9eR/7AhvDgpK33fjet/cYp+g37xik5ICFLTQ+77UC16O",
+	"gEgbQx64pe+qb1xHyprsTTgMRkbFKzpF1N/TzRpwrHqPeMsN2tjhO6xulkI1m7ven3bZzpHhRpWdwrOe",
+	"+PM2mF/olaHrz3x30SS3gS/3Mgp03cVGUpnsO+fx2fA1gt2TXwqpGHyrdPdKUnh5FHmjvBAeJ9p2vYNK",
+	"hARM28xfLevYE6d278ClbkuaYU2+u6BbbVW9O4yHpcjgeZdu32db/KyHeh9eGSZdNnqcOadmbXxZUdsY",
+	"u11uJ9Vh7rmgbHbWaKsf/KNLBn85JN7aOvgwwIkEFok/uqBzvmWfFIt5y7TByOAuxkkdfwqdhKSQ2DJw",
+	"ndJun6+akeLdP/kMhdB2nUnRbWYHNhl/fixcfSlCN/qD/pfc5UI3q97dBn+T3X3vZZtuVwJOsUnpNsj8",
+	"xvFx7iaVRCAG0RJdzixd1RqX87lSwcpmTNQd8/kP5hOnPx49zQu5glV2zMJi4vrFiFdguwpy8UtkqmT4",
+	"oA4uAnCEDLo3UoJZsq0Sf1T8B5wL2Ev5vLzz7D/QOeCUlqzXIofJ7jvskrjuyYRjfa6zr27eGN5sMvIx",
+	"siVz3jGAfnpVWq8miSF3FH72V8+sXEHi+DDIl+1V7z5oL94338PGLLfpZg0vX5WIB3s+6alaNt2+Qdtr",
+	"hN7dYXqe3EzgorVm+Dr5MnZpEaQ+P/MJT1pPfJL7wV4lgwQVGCmWKt/LoSc7SJnyvkx2ceDglgoFRuXj",
+	"7s2YW3JekkqIdeBpcxbKlWs4wLZ/UMzqCZ5R3aXbN3SUjjqLTy/B9/gLG9WIXQjTULdar0epOxLZ3aNf",
+	"oPlcqexk8jlbF9TiGvCDde9ZD0T8fo8p90DzzL75ltCOywzfPtyVrYbXOgTTpFOBXQjQOpDvS9SLt2p0",
+	"0w8VRRZZtnOLi5bmjg72KvTml3SjB0oWaiJ0q+Y93YUJ1be8rzpseimCT5LBXnewf8iunmqNRAc8OhsZ",
+	"c2+UfY2lyI8WxXkdwbaPYV6tw0G/y5bOA4JBo/tEOp1OH83uhnF0Uz9rO1bJNvPnrMs564o2QEg7FUYn",
+	"ilJ/70u4NKDuIMM7WKftOqHtGq02kkR6YZLsWXp7NUm8fbCQhzdrdLuSDHpe4Pi5mtF9wPQVNLsH+4fK",
+	"DziN5KzNf6KPu2xMpurzW44UxHX/1iERCgEQEgyyvSUDsFE1rZwpzk8uXtWLF5GvcropiKzcAY+Fr39x",
+	"dsP0EhSkdKNH2yCt5Juge9VEzOUTs2yJaz16VuwYfyWevg42nH1pwvfO4LPXOdtCvXyyN/3nrzMl2ymZ",
+	"c06xVNbRdg88i+26EqsVhtzyzqDfA2o6aDIauN8RZhx90Rx8dwie+/s9Mti7ifu4Bb8Isat8rKfsLvCp",
+	"blcyqdSsrXDBbsO73wRrv+UitCBFhssdeJ+dAfwKtLQHWrO3/NzbrpHhGhCXt/KCXQz2+zc73t2+97jJ",
+	"dKaQpuoS+tylD7vsVnv1VcY0N2vMlG312IdA6aooM+bTk7Yv3ARpj9KVDm03+YAY7H0Fl4TtCkQywE3b",
+	"k8ERQfATSWk80HfFEersMsAXTPihD/FZCKgUSxOS03l4FFn5pMR7Hh4NMz681XLKAdoUUwqQu3LX5OUR",
+	"89Ax0PeKECqXof4jMH+rYObAhx1wqI7j7MH4SkAszJw6mlTACSgf1C3wfU3QpGw5Ts6+NN40588pSt8P",
+	"i7ck/aF1c/UjSmZZ5/72Xrpet+LtVYeNPvjyuo98ExA8yM02uJSLxUx5oVhiiiQPO29veyudJIE/5Yv2",
+	"JfkXpi/Jv8wVC4WibRCv6g5e7HrLDeLtHNJ2hXju18xK9/Z7bKRhC+OA6nRWOslZ2yiYztyCVc7A0YBT",
+	"23u2zsQv/fqQ3l5lX4SYYX2Lyd4Dl8tInEHOhrhnxrLnitkcmyOG7UAKMh4RiJd63XXa6g3v9IWjIazD",
+	"yl1gShZfNv8nrhPUEmW+gK8JTkGr9moDfxEiK5ifZz656lg6ISKCkoz9pchHF3597J/89cBy3UNvpTM1",
+	"rDeZFiVsuy0w2k7KJ6fVIMeJmX/SRTMLOTs2WkpfNOntVTkPP0jqTyEwgiZcGnH7ytGSyg5oiT3OiX/u",
+	"12fIW6d++Y8+sEPgOjZrHNcB3tcScq1MLmvAZbgLRDnYuxnRjea4Z3mCGP4Z9uj1ZCAiPoFPXCIAmLJt",
+	"5bOaQz81M0M0gX1dgGIiQceH/DUbTiflSsBEdDbmFcv8NCOY5g+YQJBbaacgTkivSAkkVAMgcLS15q28",
+	"APDO/32Mi6RjZ7MGGW52vLvrgDcAVpEiCPLhoQBC66teu0O/Rl0UNB3CgSM8OtX9q2QeE5hdwYn+5sKF",
+	"Dwn6Ywh9tc60LZwJ6CzdrwKAgpkZ3R10ck5eh17sNj1mSKAN33oFTHx7G6yDxg3gt7v9wYtdxSNDN2uD",
+	"vVURxPn6MOwB9EOe4nRItmiViV10SMGyHOIsWGSxmM9BFC6yB/hD5KjwEmLIMoJe/OjcWfBxPu6miCEA",
+	"NOXjX7BLdz0Iw/Rn5z8XIMbEWEOQ/VVsqGLhwg0PENwIlnNGG2jCVSqxWTTFKowxe5XVwE6npIpbAagi",
+	"exJdkbRe9ZbFwcFe7be9J32+fhGgCnMBRfLMlaysZTs5M8/WFQIzsZXq4ILMxi+WPsllsxaTahKbB7F9",
+	"Z6GYzbCfzHy+eAUeBnGXccxP4fFF82q+aGYzICTNEmiMS3Z5aXGxWHKsbKZgZXNmhm99+LzCEVd2Cgqa",
+	"DVaGNnrGKpWKqAOVLufmrMySbV42c+h11cpZlcNFlaEYBBUBXxlwFomPanBEUIrQvx16T3eJt91ht2+/",
+	"QqsNwQAxfiexQ73gmQkNQYXuACUWrP8HASLcO/mZdi1HQDF7K7te+wn/T+7e81aqXuswqTACsD6bg67r",
+	"rVaA8G5Wvb1X5BRdaaJdyIgWlDVwfHCnMDBH9H5A6IExR8k9VRBaitBHL2n9ObBpcKoLXor+4DC6RnVM",
+	"xOAuJAaZu6c0e1QuLpXmNAp7YL8iF3ejT9vNJGDiNjrEu+fSRxWwxxUKEYEoGTxsQvB7rYYuwCfBaZ/C",
+	"rU2KuDvbTVBCe7R+yI6L6Rv3O3SjRzsuOxRva5WpsnSzO9jrevcO6cP1lG6JWkm4VaOPahC7UvnqYL9N",
+	"23Wv1pS0K3gOemBaPfqqgUCntvekxzGRHDbOft7bZZMDAXk/woDLS7m5XNbKLJasy4y9FO3MifRbuikj",
+	"zPwL5V024eUebVS97jN684a30qNtd/hgXff24kJR682FF9B0SClO3cF3fU7PUsRhNPt5X9xRWv2WKcLb",
+	"q+Bv2dshhmPlTwMq0nO/1khC7brC7vqsANSLKQd9YjppIsh1TGwhfNe/BC11fz/iAZrcw8GvyevHIEJ+",
+	"Nm2wHamaO0wB0Uf3vvWhQm3voDJ0u4RuHHrbVcCi1KsClfG4JcTh1uPBfhuu2l6V/ddwqwpwBSBuhJ+k",
+	"Zu1BvzvouoR/AUK3bjgMVaGP4GeuqwrkswihYqTDKjvmJ/lceYEHX0Xct69OEMX6LA8pcLy0980Oe2zQ",
+	"/Wo2wWMsuG5Yxv0u6Jb1aiDoFY53XNVF2/EjTw5xquhru9sFP6CIdUNIjoNTJRpbi021EFX2Zny8g64r",
+	"UAAQTWWzSPkuXNyY6JFy7y9bTVuI34kiqsrhjPDUA9YFNg0N+8fDRhBIoJ84XKftircMwCYMugsPtC7a",
+	"b33uWHZWi7ra+5YoBCnRJCJ0iqgCxoMwwCQm5BLvTsNr93Gi2kEBMcrUIy0sA4L7+wLYA8iI5k7qKLCB",
+	"ozlJzzpW4RwPvYVNt8JSHCkjLorpFBBJ+a4t8SPVRooYxU+YemcxbdIx8wb5z++IwW4GTzPj/8GONs3j",
+	"cGlJMb6GUFz6JK/oCPZS4RO8AMHP6zkXY073O2yeswKjIuBRTQkxrjZmEyDGMXIjvAfdr1LEKCwZIuKx",
+	"VcOpjb6WZccsOW/8YtK9bwHcMtjfDvHeVJQkJ72ETsmys3E0SA/WqdtX/Pe042ookvGDA6YdVRves16S",
+	"0M2a51ZBE6w2j0aDF9h09EQY9vYq3EO5vknkuxHKABIO3Ljg2uPF4hkZctKSP4/W7W0yfXMZJBDHwTO6",
+	"Q0gZXb1P6y6PGgLvr68yvvm8SoatmjQvUiFGt1Ud9LsQM+XwjHurYfXaq7q0fYNbOsN6E+KPgHf3XIFr",
+	"GXRrwLgRCMh+bwmEoXfPJWnOyL1aw7u36j3dDZm2wEJdxkuZyOu4bJ2g6xLartB2FRA3X1U40lwnCC1H",
+	"Zt6NYPI8poqz5R4WDABpeed8qVh4Q1cMNxF0DI4pbXJzCy8bnkqcpAHVo7WK9zB8gEcEGZWWbFsLPtbt",
+	"FEafIRJ8bxVAIL5UHE1IKvxNu7nlETPw9QBJfJPx6rJV0tlvcdvPFcrQuEFOF4Bs+lwwBBYEtwwEDo/G",
+	"jPDmf1jM6bKQQuxInFzSJ3e2jXLV4/gLjhLdm8hRw2YJHREFbzT472TmrFxeS0kBjkH3mnTrCVhaz/te",
+	"u8MRy8Dqn7aY/fkniD4LJga5q4Ab26iO0GvmzMVF3X3neoLy6QZc9HpTmYJRdqxFA2bXcenmqHGODilS",
+	"eVH0e0JmxGJbdXrDeG0g7nOam5RSDF12ZZsuV0OEhBDscXPXO6jwMJ9IcZL8H8Joe8Ih7G3XUNPiazeE",
+	"6wZczBOrWuxY4kG/kqo2VeVpSrdh5P9UvyJxyiP8bbNKHz5ja6TN9nQqTCJ9ATOBn+XeTLIKPTBKHjtf",
+	"pCTgpHqT8DpLAhpxoQNokzg+jnARnt7FcyeFx5JDf/YPabueCuSxVZScOgFe+q4tk0CqXusQ8z+eELq1",
+	"xkMSPk6EP+0Sbxl0bcDI+qlvdZd+zfSWhveyDbBinr+Ow7GT3f1+uLUaI+fnlOSNjLB+R1+NbK5kzTmZ",
+	"PyxlL/lx06gGz1b0sAdmsgaL6m3XeKQPXUaHg+ddcOhhlYWJ7OhQXsOkSgU77nNswTrFPZKaKLCzAOVW",
+	"pseMIpmwofyemrXVPA5RLwIAOUK7P3H8hGAN3nqXbldFfglPzsf8K864fdANqJ1dH3kEtIPHyuxSu7w0",
+	"P5+by2mTPQO5hDz/JJAuqWDcjctmfgnLgqSPp4XNB8GAnH0J0jQxYTNJjLx12crjTzw5Md5olmmWb+iw",
+	"wpmmKd+5q8A5FR72n99xQ5xNKS/SN8eEhgPZnuw9vg+Tv+rn4DKjHD21VjYT412k3VfcZwFg7XDGUPwS",
+	"gTtNcG94WteRxtePrKbT4RxSUrFWwc8Q9OzSOx3vT68g9Ll7yAyS/UMFnYYecMWzduQ0Hn0uhGJUjuJY",
+	"YtWthv5Wq9hTJCi82HAvA5VhJnA1hNOQ3xTzCuVmqx4GJr34Dei+Qn8gu+6Qqctu+5uagy/3UorUU4SB",
+	"RtC5hLpMAn6lhg5WelzPCcv/qMSKXqowkeuJQCfKjpwjHmK8YjsVPiFYTbzy4SMdY4sPbXwJonx5B9QJ",
+	"gU7lyE2R/sY1EvwRdhGfBzgqMAd0WODfAalQYf/CcivD1RrEvwDaKYGlPsjT9Q8lNWvjHHjiJkbq1gd/",
+	"PeRQZ4iagzLLbzQwkPtdLFIFvk/M8Fp5IVzSzwHkymG4zNRod5jCo74el+GYN8sOT1LRJByGd0NQIMB5",
+	"5d5AfDQc4Tzm5AraMOeI/MbwcCokuIG8JJA+CksTOK3RfCM+pz5AJbTNFgj6O0wmpT1nPNZwqHx0iE1M",
+	"gG9AUu58PG1LB7U2unbErNIJTEd845wo66VJxISvxE/4Q4ks1qPGl7sCAq7A/4WhB9khWE/jFQ90kWF9",
+	"Z/B9Q6m9Mth7xYs9KNFgRCVB1L8Ofse1GpeuTGJilG3WnpI2G6GN2zyl2PcfMv75dBfDyEmeCyEexFIU",
+	"wPr98YE+OAZrWne1PjHtbKaQszOAU45xN8u8CwRBgW3rV7pAd2bF2zukjypJQjtrEJZnisLtVUJXdof1",
+	"nST//3KWXDt2O8K+oo0Oo9PuDq02BcuIxEs0sK2QMiCQ1bAmrfET4zBWa+egDx9FaiocZxJhJbB2Wz1v",
+	"e3V445CA672+6hd2UsJN4IRN6C68nO2VnJ0tXomZoy6mO4WBBzK8x7Z1Wo2DLh/ycmCDrqsd1YeiZxZy",
+	"lxbYVo0ocxJ75t7tr2hr1c9lh3A0+xtj6fu94e0XRwkaKZPCUidHmJb35763vSqmtfwfOK3Jh14qLxUy",
+	"CzrXGL97KRL00PnuHenRnxp0HwgfiLDcpoP+8yNO6FPNhFQnjHAoe/tQkcqnRW/7X3muBpKjAgeHcgxC",
+	"JPPiLHT1fhiiOPEcC+bnmfJIf2ZD+DNVXxhWN/gj8bpdmMhaAxzkItoo3uj5HuKjzUjrFVMqD9xpKIgj",
+	"EpwtOLCUuaCf64hzAZUSWCowohje86BBl7ucz8ReM2HfIrM/kSQzSXISlGqeNMnU8DfLRCfknUFLMhrt",
+	"bPUEabZviLBX2E0RwxghGeYNyCW+Xbz80o+zW+WlsmPmmHECs56J2a0ZnIQ/vyCIkGPXODXQbdDc6EaP",
+	"318/9iIWA7PdHSFcMJIK5Jebn7dKwFsXrdKcvloYqstKPO1llXtBfbcw/iZ2e3j3kLqHwzv94b1d2uoP",
+	"7/T54oi3t8qn/qxHZhN06yltrQJmx1tukNmEd7/p7f4Vf4iZ/WiJGM0CjaR7crWMp8NElof28ZSSfIqS",
+	"NDE2f0KdWdxd0XOAZETdipN7eiEdozCM1Xp8ieILuwi/DLJ0zRWMo/QxlBaviaOPQVMaOeQsEDgPbt7S",
+	"+isoFhqCtZLZxIlTkMbUWSP/SFuHswm61/D+dCi8D0KBDmAXOxJ7ytRwRuaYWQPWbj8sF8MxdFvPIQCO",
+	"/MU4OrKhnBv7SPwWnRcJjaMiFionHBW10Cr/Y+0tNoNfmVhO6jWiCaPd1vGoLb4exGz0AtUSQo7tNG3X",
+	"pmYT9OAZI4utKqB+N6ug2oDdLBJfN5lONpuYZiYc+wQPpACogTs9fB85QqOSxGCbZCSJD/0KiG2233ym",
+	"TOl+sRsMdHPb8c8VkR8XRWLrnek6pvdjYczgiOO8qzEYrsBkBO2B8/TZVPpfZk5NY24ZEgZPGh1BJZyd",
+	"CfzI5LFj/qJTPGI5cA1Dh8HVLya1vsiQO1A4IAWiCe7UmAsdV9Is5HcGsPz3wJekluPVGjL8nuK2tjBF",
+	"9twwUCgmHOhY2RjB6oeGkbzB1aE6lEF93t6iB11+D3zn81TgQfKfmwKS5vumw/7q6VRUIwygDcfwliN7",
+	"mKSbeBKNVi0R1yPhrYlOnZ3X5M6+xWJOG6kIXKmp9L+cnE6FWI508QSqUkRLikZ3U1zIk6Mnp/erBfcu",
+	"GaYluaIRxC9S7cf7NyIQI269rT+TlRPvrUK0VNX7gAOp4L1ZW3HZgdsUPdPS96ZWS4ig2b3lpkjNEX0h",
+	"AGMOANavAL0aKS+iw7xr/G5vECknFvwjgVHjEGI4WBwgDEwbH0mC/xsLBgNcA8cvHim/VaGrGEiYUuBh",
+	"hA4VoCK4dK9/XXC8CUBmyrQ1ReMV21AJTgbJnSt7ChEGUSqTbndq1uZWJdOLApTCKyE1Ot4TdPSFql3i",
+	"a8FHAk468MdVlIJm+KBGE9KUpJuoPowmiD+B90Kg6lyfeAE1y4RTjGMD+e9Yzv7DEHB6KJcOh9uojIDh",
+	"WXnrshkv6KPeCBX+FnVNeM+69GVbcUs8XhVKiPhUwAs7qQhfMMsZjMjGr10QMVSSDheyVNpe+Ehbn5il",
+	"q7aHAJh+mKj7cZCWBX1Gq7xqSMZeu+PdbRARBZCkzeGYEWNl8HLVW/l3wNPw5H/sFRBKeVetgSPhftjR",
+	"oOoiIKOqdTiBNaWYQGD3Y/egkOWinWjJvBJ/yyCli5EH97NBYpnKb1NQ7Gu5LWCSnQbxdg9EFwlYGBl0",
+	"KwIzLXLEjqjZjCi5oJRolxFy+qhCt28wqqGPu4PnvdSIkk8Tg1kY14+vx1COsfj1B4q2VooYKpWESprG",
+	"GaXBjRtvo8XJUeWEw0I0RdLANG/eSJITZPhwFcTDDKHtJlTJPEkGB6u02X59YcvRogobmchq01ZlUkDi",
+	"jJaTUpIDKwizVJ+U4iW8nzkTiY4fNdYNIfmxZTphvOKV/2lpwPDQRiA2OO77eUa72pHiQLDfb3KfB7RA",
+	"CHkE9h5496SB4ta8p7uQoSlfCHnj1rvIilOztt8swuftr+kWUj09sU0jgNowGykH51woZq0S0pX4Z/5q",
+	"pmxdtkqo18E/dBUEwsWoIqeONXpz5YxlMyVbJ2BuuH71a/AuQaVGkUvd74IUVItCw168WhvPoLPWvLmU",
+	"dzKFCUrtRIq+A7SxUCxdVaceHaNQLGYzi7m5T0c/VrIKOTtrlSZ8CmA6Ubqsr3pPD2U9YWm9+UUXwELb",
+	"e8X+e98VNRI43vU3vzn9/vtxtU9m0qfTaSi74ThWiQ32v6c+Tp+4+HH62FsXr818nD528uL06Y/Tx36J",
+	"P/39WGhNZMXh5YXOJxmllcgJ6LZbe7eDZdBjvLACZSaAoYo3Kq6cOxYN7HMMc1SFN+05K68l84Cpjdnc",
+	"z0XknM3g4fpsAiQwQqk2fJeXL9cEWAdYzMs2bfdH6VEBqZDLxqC7JE6brxO3Ri1brxSr55rpRlVAgXjL",
+	"p2Bl4OUGfbCO0/cTSSJA2DHd/5IJK/b4xKQbakOBWjNYiMTbxvIVWD/M57y08R+Dvih3qVQ1x+KUq0z3",
+	"Ed+vKJ6C1Kz99lmR9L8he+bVXwXTHoKljJnGx6YhmuPw2gIwm60G1q4OlOzpV/RBm4rk5UF3hW7bfnh3",
+	"BB35coSfaHMm8jR7vJZHF3tGTnKur9OBIJlYYnyJXa9M2fpMR8uykicnyW5TwWsLepwSUCdERtNq09ur",
+	"TqeCRU7w1WD10IDLSFXXYs4j1rUY0ddy2RG9FOQdSCq8ZQTHC539+GuDlTLgRLEbh894DAQTG7HpLmDu",
+	"QYnEyJPiAnKO8Oc+4yUbPUK3a3Rrjb8pNB91OgA5mYq7kWjGyp6v06H64DAL0H3lP0Hl0WouI3qt8OgO",
+	"oCKBsAOqXorQrdqwDpF9XnXGb240XGsOG66fPxBMbGE3GxhPhdCmC/WoexVAsfZAI2Q3fvux39AWqlRZ",
+	"Zccgw9YT78/Qd5Q+rQ2ed6GakJ8J/TRJDCYaDUIfdunDvn9Rh61db1t0yaSt1SQxynnLWjQI3WoniTFv",
+	"OrlLS5ZBhuuHg/0O9zoM+l36sKe8NWsb5uKi5eQci715y9t+BL2e8vOZT/JmAX6s0RVwLw1v3vfHp/f7",
+	"TJeFcwVN7k7NW17FfgFzlu2U4BYYhG6v0c4aG2exfHVuoVgoOsWSgWmDh8Iu3XJhp+7UvHaHblfEEPUq",
+	"bVe9A8gD/+b7YX0nSBdiF7n6wK4b2wHGq3DxTPfgiwN1VywKr6o/Sybv/cmNIKtz2pJawcoqfgYBdzXx",
+	"GAyPutRkErWE1M4m3hLh/pOBcD9GroB4arL+CQb4sTpCSEZheMpbw5KanYo21q/3Ie4xYSRQJRoc1EQJ",
+	"O5Gg1BHs33BQBv5fPEeM62mgNFFSim/xlj2yXoiBKE8/qL5VxaB6kkCvWf+5SC7Rg3W4R70m7f4HmmvI",
+	"75yMzO0IvSUj9hGNBBRGP54fKL9GZhPeNztoS7KnauA0etmKGH9Kfqk6df6fclKxVL20+HoVmePbeBr/",
+	"490L5Li5mDt++cRxc8lZOF5SiteiU6cj+prxImJxWZh+wz2stfpaHT4L5udn8b0T/zC63+eYJp8puHeP",
+	"VtkdUyp8pmQDhv0XXhe6XHkbh4xOTqXZOrgruvtI2rRKKep/SuuUvZ+83LVSXTCyB2ff/u3bvi3K92KK",
+	"NqqnifF2OWceP28Vl/LGdIp4/VWvdchkVRtsVuOs7eRT75iOdSFXsH4NKuTUdKpklYv5y1b2AxihPDWd",
+	"YoP/L1QaOAgA+lfzzGI/aoThYiYuVZtZxTKjXxZtKl4/Cz8mnSyo+akzV3s1Kdv2D6eOXBVcKearZV6K",
+	"z3RSBySkKHEkFMc78x4t3JU7icMXwgTtG74Kgj5xFXba2PXavDw31nLPyJx+4ax6DI6ytIhR90HK6SI6",
+	"m7tMgpxQ4nkI90BuKeF3BomGbxQwUBhB2u4L0GjkkwtWPpuxi9x3mnGKWfOqQUKBl2awtzgortFAh/xc",
+	"0bYAUZhZtEoZ+F58yHDXg+JN8t188UrG98ka0Uhi3R05turm5YsqGyQmSBLzoTmzVMpZR/0WBC98RACn",
+	"PmFki/jFuhR87IuBD/tBx2isPphkvtETtARUfW+V1l38dFDESSd3kCxVICd3bodJQPwcPkrxe/CYxK+6",
+	"DQNLLX4/QdyGtkIrcv0GVJH7/9GFM9IH6IHhSntVTE6FTj8iJ0fW6oxz+Yk6qBdOzJxOp0+n06l0Ov2/",
+	"JssZTCY+P3apeIz/+NGFM2zCMPGSFedTV6p49XhqF1hX7ZqIv2L/mxTYNcxIgiqqUKA/vrrXrRXu4QRd",
+	"DYGBwtWz4+d2BhGjAcYJHvMes3nGxejfZEMbJalGFK5tBnrVgLkkcSXhwoJ8ZT+4FY5op0P8TDDYkEgD",
+	"RewGCrfT7/Sy3BjerHjLTb9sg4RmL1p2Vl9GSlPIU+kYJhh7ZbKoLdN+mZDrQIzUWCovmSCohcsGfN/s",
+	"bMxSrly0lWoPakUSehvruL5uNVHMBxNo+0DVxwgwaoyr9ii5J3qIgAicTmCKvckCZpJUESkVjuVLdnfU",
+	"vBolFgb3GDOrGiPIQwU2Kx5WyWfAi6TU8hUZH4wz+Ene2zXA8Rw84IVL1HJ0YLJDF1skhkD3QaAkqLku",
+	"dDLego3dmLVRSOiYNOw3UdpQhEr1mOc3TgOhAq4GcE7D75cQ21WIo5IngiMrUjXCdkY0ooWtOGPl81rX",
+	"XwDL1yT0ZV/jHDkq4Klglj6d6ITeZw/GBP3hI/ELkjxu4mQnSJkOkH6nwnO+U8QoFEtWpjjvWLYRyryE",
+	"9KYkMcq5Qi5vlgzlI9CY/TvIgDbyVrms/QCmQykO4D0/MQV8HlNRqbB5m7v7NEFy8AUrXP2ZKqO4e+wH",
+	"XnldIN1fH1MxcS/AySj2Ta/ZyWMeQX2C9IAKedEDpkSrN8KIgztOeS+r9GV/mnupFIeTL9+HG1Xexh34",
+	"E0pPnT/qLtS+nuL1TWi7Ni0cWUfwfvGPQLtL9oWIi42PLz1tPvgcBu/uwnupWTui5oDM09RajNkbpQEi",
+	"r2wB/DwoQhsC9Awn0INaHo9WVRnuU0LgSCLetIizTf4zljTOFa9MxJc6bjQFLKm7qJh22PIpnLffbYqY",
+	"rFLJgWdRIbRbYmV9Gcr2puoKx7srEsYg90jRZ31DMLbGyZyVz+t1AV+FiANbI0pTlN2Ei/Lmoda+lNBI",
+	"zLkAsx3/Gf/x1wA2JROg1U4uo1UcVRQ+H8puTYE11OqLbXbbqhExroAsu5Lf7LCf/e7nokgg7wCssnJv",
+	"pcqTw5h2pLrbVD4bweRjjtIb2oAYYZjiZcBhISMB0aLdccflNBij0iACDQldriFAO7HCnB/9RMWwUyL2",
+	"h3riFMYKCW1X2GV4UOExwUG3pnjPuYcFa7AN6z1v5SXXYWn3LpZXnFZihVzzNCzbKl26avgqKNO1w405",
+	"YUvAvPfZQzIURt6qQSrKNjTS8zbakNq9C2jXL3ehO+itFXCZddwIEAK40E6fZ4rzEodS4MOJ7fcjrDoU",
+	"+8OVaNnwR7yfYohhlayjNw8/YtgA2zEcpV7zqKBATKeXsQiNXDmTtQqaTGVvreH9adfbB1/Jw2eqmxn6",
+	"zmy7sg9tbMnsI4YPAi4r3xU/WfOU8f2RxFKT6vHqbuXvym+fvaDtLP32WY52kBWgRY3DzRoZ3n5Bt/uB",
+	"RNUgVWHTrMk52+/KH+AbUb5mFIpZC1J453OfW1n2D8cqLOZNB8IloZuPTZA5mGa0k0B01I5tzSaumJnL",
+	"hLpij26ZxkaXPar4Tug3/0ye2XvvW+WyFpM9vMEUHPA693n3TYH0ee56bo2zEFF/7dk6XWkiyIWNZYhg",
+	"ULciy0tkc+z7hZxt8jJ2BXNxkbuzwMEZdzzv2hzQU3LiHzoPf8bOrbhlsY8yZgSEd12SztXfAi/Bfbqe",
+	"TBRtayLKwVGvJ8c9pww57lG22usX4YigY/s5y8xeje2+LlvdA+rgpevVatgiR40EZ3NmKWeVj3/BrN7r",
+	"Bk8kj8nv5U78oxvkYdJlo17NlGD6k5KvOriebN/lrXFGhcvDcOiWt9wD2bjnDu8cgjytrnptUftG9Mw2",
+	"oNWE4dc11G1PeJWWnZ1wdbHriYtKGoyWDTJm/kYum7cMAEKCO5XjI2WYTfaC81a+Rc9eUIjzjsXsK1rR",
+	"DVPUwsyBHcCX2Qx3cTdhZGiP9phbQ+vIJw7VRt8yx1WYuYyFtjtYLQlaT+BHhvUeMeDmY/NXEZqO+o+A",
+	"2KzPF2OS4ELXhdtrHd5eQXj10cUJ6+C3CfQ3QyFlBFGIMIjfcYG9zj9eUeV3JeTnjIGzct+ArMsn50m3",
+	"auxcA3qB3wyaw4QblVEeUEleYxmPn1P0xrgAtm+Z/P7DBILjJ8OnG3OToO9k9OR591mX0L2G91QkMsl4",
+	"behIoHF/vwKnuNIbUwoBRGimgDJU3/8WsbMchixnAC67ZR4/bqBuB52ZAZp388agV+FVvvkTPO81Uj8s",
+	"TuGcpBcy3zLRCzlycrCfk54cDDjiYPTdWGUzcL6HBvm/zn/wWx9cJ+4DALJA0+DqRaun/IlurEEQbaWC",
+	"OIrUrG2IQ5HdTg1fSQGehX3Rhzd2+QtqO1O/ofpWDUrn7/e8m5xYttpQOgBjd9zvZUQogUsRLDOgAGrA",
+	"zQcMjY0iWBv34fIm7FhURs5WML6b3HVkmHngRNHPsAfXaphXoL4Q6PJazFoGb3iJbW8fRfiJLNnL3RFG",
+	"IGqAUhKMiT/3ZYAM3aCwQ5MwcInFlR1jDdHTmX7zCrp1tjmyHy+jqFirmnKBZs+pIxwGFNlQW/z5wNYA",
+	"OUK+TIiOop1vlSNNJBOh0wk32cXEnOiGRjvo6oXxB9K6CUljxQ3ZZnuYIlx/kOwNEM3MnhHH/PZZadkA",
+	"ovzpLqF3d7DqMnQ2Ts7aisETwKILWLZLPPdraGKNIyNGgr0/bNS1mgbMgfEwNjAYKzhAzIJj9F9OVAiX",
+	"eYGKR/DKdB/5DbEEA1Y1EeG6HNHtYkLr/rWFZYn3+CxnFnO2bcX0Tw/mAkHfW+J3k1W6qvJum1idZFOb",
+	"77TNcUSGHFpRaGLUh/JSQTu1zZ7X7sA+3m0IBoCeF7rRY5afbFIRUq6CWtNNkQUlQCdyknTvW4j6HgDH",
+	"NrgtbARsf407JCTH4iwQJQNGX8vZX4WYX0OUdMGElhRPd0HPvGB+Yisgwds9upf8d+WPxLzGtqeSwjec",
+	"/hLUn8QZBpasIT+9/BadaLX1R3XE1whSaUq5i8IqCNoObbXwsfIhrdb1c7Tc1VGV2JRJNaT4Pr2/K5+3",
+	"SpetUqwzRjHifjwfjHA1xZIld9clA5Z97NOK8yLJrYBRpge2e0QVfqS6ilbCqJHFoP4RjXhUPJJMOAs5",
+	"+1PYi7inL4gnfrjjCOc43hukDDnuUX484x/0Fz2RN8rKTvCcctoTfBTOkTu5zi9a5qdWSVsBOmAjc/93",
+	"SJswczF6w3nZrPUIriJfiImWhcjV0aPhh0eFio26LGGi8GlX4WqKTwG14YDlLqCVUZnpykbZgBCGqKys",
+	"JNbw7rnQvUUneJl16HMJbkmg52i/rYqlJ9C/PiaELPL6J/OcRzP8L+p3lBsUKcXuMOYWTMcADInIzkgJ",
+	"0wf7zaFLDkyDqagJM62oLRr2jN7iSVlzId54lRdQI3BQpew+Akg5lobbqCLG9IUor/3S5ZhCYaXA8wJg",
+	"N3wAgZ1Wj504hA25gy6gzvJaQcEsiiObnj/QfeEndYFOx2/j+NxkfW5xX37zAJaBitRYcGX4mCXPnthN",
+	"EVkzTlF/+NJtfzQ2onMo8SDR6xyCJhQz6FdED2KFv2DDnpWWt+/SrdqUMVe6uugUUyXTzhYLH3109p2p",
+	"aWOaWd5i2wxBwNwhVu8FCOcQChsyLR5pTbRiut9T7W1e9Z7b6aIbGGS98CYzkv7GUoujjQdGc7w2YQtS",
+	"/CcYDAvxC9ddFAcRTDCaSafH53SFqc2PLf0Qcgt9IEBvUvGP7oFqeMi4aIyVYqCrGu7XSm+wtxMXK52E",
+	"BahWP2wvgsQlgeAV7vuEx/PyEEuGnFClsabwcwa6P0mqksFfPlAgUh8moLGR+9eEGPgx5MkixzF8TqmN",
+	"ANa7XyEhRdIcisXLo6w/I0IKBitYBPIvVNDG+Aa1vmY1JorJH4wPTIfrU0KUWXxfbpcMPOvIfiQaADZw",
+	"bqmUc66eZ9NC6ixb5XKuaJ8pFj/N6ZAej5uD7/q01UcEYoVu3SK0tQYk1yN0BVNh3D691SD0b+3hckeE",
+	"qKDYaYV43e7w3i6hbodj4NUaUr+5cOHD88xcRZgrN7Lw2Sn6sEcbN6bxVHmRQO+pK8xOI5P5TbHsHAPf",
+	"iiyugDyQkVViDpeUTCCGJWGbVi6f4ev1GaO5mMM6XAD8n9fhR5Z7gFZ89JLWn8Oysb7CuXfPXyBvf3gW",
+	"VQ5M6BjsveLmt8Ejwwa42bcafv3A1Kw9a//d3xEm4J+2Zm25xwLKJHXM4MaCyrwrg1z4IxvpN46z+IGd",
+	"v2owEeY2Cb3TGd7Y9Z6+Gt7pi4rmLQlUxlb2SiorjAQRHCHvsMW+G9RtxPorZHi7PbzRhU/yuhorHe/r",
+	"nVAUjosuetCke6JcEQCHRKF1Y95y5hYMkZuy34dkla01pf4grBHmt9KRXfJh80RZePXrtLHDFzJr83rx",
+	"4KRcH/y1DwQEf5v68IPzF5Lkw4/Y/7x94cxvkuSdd99798K70yhp1VkzLqnsFBGBrp4oKBPexrrrrayS",
+	"kDYBLEm8GSyqM2sHF9JqkOG/NhDHDYS9L4v27GE9ylPpk2SuVCyXM8gRMiXrD5jHCo6I513G87hNxatz",
+	"0BUAknJxIk5P1C0ROypuN7bHZsRWX/XaHS4+8NIrxMp5J1OgMTEL3/dqDeGOw1pK8ivhIC3vsMuRVz12",
+	"e4YrFbDxXrpet+LtVYeNPlwqroafSp8gInowV7Kylu3kzHzZEE7N5zI3D+FY91yOcWTmHswOBPep9FsE",
+	"MFYZx/zUsg0oh4olegML4tGXyLp4qszyLttXdglwhaLPT311sN8GYl9bVwo2iSmInJvuOggbsZ1QCQpo",
+	"lmf/sn26200SnA/UvAVDhr0P6YdV2t0R1WeYfMdEL7TpvLUaY0X0YRdyeThNI9/mYe57OGmmNzzz9up+",
+	"6yRuGXFOhs6tIGGIifRE2xZYpUu8O0/pwbr8oULYqd9e9fZd8Q1AULhTxqmZt0ggGDjt/a3mQ3Nhyb7h",
+	"RujNFuMQzwSRgWCRSxTA7+Ay2XzuCQJGo57teaWmcmAI/GI+4pOGfFNWCTfMxcV8bg6M7+OLpeIneavw",
+	"3/5QLtrG1LlfnyFvnfrlP04Lh7uvURhzzHjmoTgwSyGrisd74ED2234dRSfn5HkhxW7T6zaFTQPoIUK3",
+	"t2FRjRtwheETAskrtcbNGlRNEYkiYWxyZHmcnQRUV1maAGtktTtED3Seta9xQiXXCFspuUa85vfk2qx9",
+	"7dixY/L/2HOn0mlyDRpZ57LoOJ83c3kra5BrPkPEsNI3t5iwe1CBtgXqkGTKD0wP6653v5kUfGJ4kxFD",
+	"UrQyoL3qYP8wSQYvd+i2C1HuacLncYLNQ8c72EyUSw9MXWE/4B2TMW9Rpot+8wqtc8yZ0zG4wMBLtrnk",
+	"LLAh50wHl68KfT/cqqQo3GrIxI5d5Xsn2ff0/J999SjCpBf+7Hyx9Ekum7XswASxda3Iu5GVejh0AnfN",
+	"/9Ap9iG76GTmi0s2HrRopf4KmgRJUAF458D7BqpR96+8H6JfwoCjpnf87FWeW89ZDPRPbazBve/5eDIx",
+	"lV+yqRQsZ6GYzbAZmfl88QruEzhHYEKwL8H4/LN1poHdVz/1FvuUKjM42SjioRmkI/nuCdjaRfNqvmhm",
+	"VajENcB78zJaKlJCvPhLJB3FKWdlc2YG4g6BtwNs6g+YLqwU8OLfm5mJvYvCvXCI2TJwA7nbUFEc0Ush",
+	"u6wa8zkrn+WFsfFe4P3Eq4HJ6b3w+Fcs89OMKCgCywjdtsF3TfrygWhgEtQZgsW4Wz3abCPqTjcSL1WS",
+	"EUYVG0zpHgqld+Dtl236eFXcPHCekuFqLVQDTXwusF78SNx6gWiCkJdrIdALXWHyUICkjHOWU7p67O15",
+	"xyoZZLjZ8e5iQLRX5ZXL2S0QmjAO80tksWGcxzUt0kO8AiRZtkqXc3NWZsk2L5s5MPHhPek+FkiqdgBV",
+	"GATnCIwhrkNeP5SuUO1h1hZVbKRY/ejCGZHiHlfOQan4CqL25MmTbyW1dSN4MHNaqrGqX5+pMoeDfhf6",
+	"4/l1djiTqajj8xEbwQ+A+gysKdC4Bf8GFRiUCvxKtpBS2Ucoi9LBI5MF4OM3q97eK3KKrvC2w0JFEX85",
+	"wf8SLHTgFzKRHJPLei6hqk2R0y/cy8rMFeHl25qY8c/MqKA+65u9eI7c1kLLT9SAaETVBEYBf6nRlSbk",
+	"WgFiBhUQZryfMecWrGNnirZTKuZPE7t4rOwUS1bImFfewGyvwIJ5+QulOYzYBLQQ1TAumfqd9cn54tyn",
+	"ljM9a/v7yGz4YGUy+ZywQSHxVgmgqCb+lfLxyyeOB9Jb/ZPw1RpmdSyazgIwDzy+GwpjFcVpNncZqSKS",
+	"Bsvv38AcJGUKfsQCy4shMK+CxSLQ65TiXicjkLmvSzaQLheurxuhlAUjqQa8NE8HYuqG2Pxj5Be/QOfG",
+	"L35xGraYZ9ADV4k4iyImN4YChSkTMbGFc4KufC3JjcQoVCJCiF9kWw4ZW743AOQnU9PCOlpyhDIl7sBm",
+	"j26KIOQYwxwxfHKyaw3IN6NNzCBGBR0lupLrK3kghu2YRFZ2Ay3dznB1B5L8+BIbQjvnvcyZSs01BTfg",
+	"GQLqiDMZiPxeDyOvu6H6YmruQ8EyArYs8Z0vwlTkK2eUIQmYEcfw1l02pzt9Mlx3vXaVbrlKMWumwpNB",
+	"t0X3en4CUAh6Qf/tlvekgWYuB2GkSNhkwAK5j8KrZNNBk5TNRU5MzIAd+Y1dLj4UEAi2XEWeLBqtisij",
+	"aDTth1WjKNlkSC2YDuDdYY9Wvh1uNfgRsrkpfFqSsrfyraxozWv2+9rZiXQ6/S8zb731FmzCWhNSkXui",
+	"owd/sHXI3lSzoYWDs692Xj6VTqc5BOvJoZ8cTRjNp08YittMeHMa8vJIKgoH4gMxWiyCAsyOfXPGCLiG",
+	"oHr1o1Xa7kOqgwjIVBW9JFxJhaBVudZAkLlMhMDeb2K22OWFO0TYlos0Xx2z5B/Z+mPYz8nsmO4GLpod",
+	"GzohDhkttaFIHeOXgV7e/rcCZrXXfTbceEKuEUbfI8zq0OzI/7n9lVD3rgkkMHs9FmkRi6SIR0yQCUaW",
+	"sTvQI3UB2gk+YqHVODIjB7/D32Gvhz95TYTn/A2RKFahF4hQWjKoGyV1AT+vhWIkECCcYBIyCMyMrNfB",
+	"MkwyiMBskmt+YG+yHRLwVGYZTYIynOSrHLp+jWhylyZ5X80DAit7RA7eRPORBtGYJBW0W0SbPnRut/8o",
+	"bueJlETbw/FoAfdqohuuIJDoBnwpBF89AhJXG4oGUQNjpXzcKdqoKrEKMxl8fR3GaGEu/M0wSDXcmmg0",
+	"pDk1a8+kBHkrTEBCJ8N7I1o8ghWpXBLBJEEyQA1hdK4/3cWYFQ86BtLG5DaFMh8IIdzZOSKvOQX1Q7s3",
+	"xMDLDa/ajvF7st1SMB09FS0k9cwjAoaI980fYW4CNo/SaRzK42RK0QeUI5F70JO8HMoPw+fj0cD6q88N",
+	"sLbL/oyhGEZ0VZcpVn4AA4Mug71VP6J1KkVOegcu/XNHTbzjirg/b5XAJd5v93tRls7bgkqakS9wBjPF",
+	"fUGnCeRmTofP/5cpjQipoHiJv7Sa7NQU/zUVTJALXZHRuY8RLQcZwST5j7KLKbOaxyUc+xmNIvWYsxxf",
+	"CxOoxTuDvUM2rfDQPB8uquNwmBLvcwTawSseVYRV+kesdRApE/qHlDohNpMdOGm/ypPMs1VgmGpGa2za",
+	"U0+5hLHIz1nbP3GRNCh7OGM1ddlQwv9yaEf8kqDcIIWYbkMxj7E9NC9fBK5qVZSq8S4uo4RvQJsqOT4w",
+	"AyUiHKg4wRELb394NpFMXLZKZQQypFMnU2mA3ixatrmYS5xOnEylUyexg9IC4EEClc3zRY7QWSyWHW3+",
+	"Bjq8YXVq0Fax/BoCGyuCGq7AxirenYBTIBzv96NVkce89T7Qx4N1RYEVAyGZYysuNgEe+BZCxo8FohEN",
+	"viWwCKZkcIOvL6mLTCNc4MWud+AGHWdRazoBW47tGM5mE6cTuLEI+LHKzq+KmH41V7Qd3j8y7NIHrA74",
+	"dcZhjd5j3xZV768HYUW8MFHJKi8W7TIigGbS6Tc29ttLzsI5/nEcOwZOhPoblCQ2s1YJJnLeco75OCTd",
+	"MPzh4+cDoCUY5xSuQveWXO3xX5lZuTHslRMjFq6GeyffgA/xLd3aJw4zkiltpHIa53xy/DLPlIplDps7",
+	"x31Q8O7MW+PfPWc61ns87dJvRjf+PX/hPswscfrji8lEWXTZ80+fsSrzUhmKryw5C4mL7K0w5ykuOSNY",
+	"D8ZpfJ7Crjq75z5UahtKx4S1rIOq96dd0LKgYCREnBAjokRd/bKNagbuLvcezKRPxV9rNuvIBTsVC6yr",
+	"u/TRTVFQJDR5cOkY/q0wAozxde/Ombxllqys9gq9Pm39GHQCezOeVNT2G2z8S5auUbdy2XiIEbECHJPT",
+	"RpQt2OaKKBcBvgZ3M0JdMiVEKDEmoteZwLkEG6RxTDc6ZCHKU6d1V21wDxoUuBrdppiG2wzU/kyKFD8/",
+	"FMm9noDOkUJSKWOo4L76MSR7yXKQaSub+KMLCGUsDaPkK8JTeuPEFTohnf6GA48lvDL0l4nnUcJ/qRoD",
+	"8bAvv/XFT6gb9WKogi/tx1FQgn15JtJQTvxkGgpnCNwv919LXfkBoj/91k+t6oyExkwFwDSo2czM/JRT",
+	"HAVtmbVDMJUpCTyZTmqAJVM+R2Z/j0JspgRWZlpX0Y63IPjZ1TM8rpF8L2teFR4H5Hd5yxndBl20RQ42",
+	"c/MfQCs9yd2UyWDPZAgby8a1SfGa37G1sQP1XzdeCFdWfWfwfUPR/WZt/Lc0ymUH0ACmBeqTgsBf3lFa",
+	"WovIEHgdAk2XAtWFd3t084/YAEYO/2gVERYCAg0+TN/PdVfkJQZLaMAuST+1Krhnbbl41SsSyPPXxnEg",
+	"4zEwLZEA6zdkCvQNkuHsU8TH8cmsjj/3+e5ixWpX+mRQY213oCzrPaymLNznEfmChPOOeXUiXRkm3uZZ",
+	"qK9v6I1+5aNg/P+Hc9xT49/9bdH5Ndve17/K8vJyrJFq+Cg3mTsLExehi1rJLFgOSLGY5GP/kWDjBD0n",
+	"AEXIzMcr37xRVaTiru91Y3ouKF9s8g8qSU49+Kf+2IbJEvZjYDdu7p4N1EAR5C4rPIerp0dQuDGluQV0",
+	"DWpNGAgIUEqQpAS8CKa7/SX/ujrcPVeWncb0z8B1UbzKyhjYXNGvYufdbfCd5KyP7+6g2xSb4ffzUtPS",
+	"ZVvs4YbgFvgdnvxjlIpXeHQHn+VfBF+rs1SGbhiG2vEXg/V4xtCdmx9wY9bmHXCBjyZFl/B6kww3vgTe",
+	"8RfJ+Yb1Z/RlU0UwBJ5mW4QzE7Cg5R1mQhmywbB0yHNYiAhN6Syed8yr5znN/oi2jjKKTtH0ZaQi66BB",
+	"+0/L5d4I4xHNU2JEt8KKBLN4g6yIM7c49mMUirazgHT7maamMNTr5iW6BS7r60PBBPxfQgioU+k0iap6",
+	"PgaODwu37mtfKq/sKnrRk0OByKw2Q4k5HH3ZUhpbIN1jnwgM7IEycFvghozP1NG8/T5HTEr45SHiC6Fj",
+	"Ly8PwBuR+q0G/HQeXnGeg10xkzbk7iCENm4AtgziLfQ2wDC3ahKOtRvO+gqmmVdEK1EVYxvJN9+r0Jtf",
+	"Ao51nRinZmZIvIZ9mnz82UVjWs6OF/MXsQiFk2OwDBIK5Njs4ETItEGM+Vyp7GTyORvTc4Tjx+8jtg9h",
+	"FojPNDB+33El+5LJXEa2ZM47hlq+tIFmxHyuVGA0A51fOFBO/zmdszFXdt7hpB+5SiFjh8foVg4QDrWb",
+	"Isbvf//73x97/31jdJ89kUz72ZJVuurn0gJpJ5IKI1w0HccqsUf/98fpY29d/OLU9WNT6Y9PHHvr4rUT",
+	"H6ePzVyc/ntd+fNor2Z+2DEjfxYYNdAFdlyxgesXf0xmnzNLV9/LCYeGtjIuklaKeNtbft02Ref2XlZl",
+	"xL73M6i7aIGPe2+xVJyzymUoCfAmxEczyBP5DiSJ16j5t1+ry0ZlgGKbjtBEQww4yHB119ZAoIJf/4Fb",
+	"oLwQpMAmIX4xeK+DtYiDl1w08pO/ikKKvLErh4sINTRcya9BvOUe+3jLFa1LRZkIHy0FmZMYAQ0vTOlK",
+	"6kaL9PLRQwBe1WwMyKYRZqNWHQ4hJZoRjXiyAs1Ku5yRBidT+tgNTfzYLGCMqgdb9pObsT+HKaos943b",
+	"ocnE4pIuyIP5jXi3iI5QvVojdBf828rNS7wJkvQG+236shEsKsbDK+JqtBUbToA1/KdUJw6ADlbVBGlk",
+	"eYN+xceDhHgMerkCujWi2dmnolk32uvpt1bFCGa4WWW4iFo7tAlj7x8zypgmJRhICCmEuUIqqlyxk3UG",
+	"dgwrgQVy9ShOkRTYwhhdErF147VIxvGlIhlhJ4tLCjt58xES+PZHi1BZ9CdGcMQyMV9K/UxM7Cf0xf0s",
+	"mpB/X5DngL9Ykb7jVCCRAnq8ZF3OWVdidaBAW+mk37s9GemolhTt74c3a3S7kox27qedtUHXHXS/EoVl",
+	"fbYXNBQVIQ89lKEG/8ouXd4V9Sx4a+UemU3QB00/bt4fdCuzCVDUqlXBgta7XutQZoBsVcFRuFbDcn88",
+	"sCsYxi9+ARmUXZ5PMmXw7knGNAfiDHpgqG7V1IwTDFWIvC4/M55/+Be/mKQ/d7hCA61+y5jj42Zc4hUZ",
+	"bjVApcTd4G/5A+y9Guy3EZjg0kcV0TDx5g261xDyDZqRvUKUqdxFyO+kKy0icIXtGlOsWw0FB+OHZ3iK",
+	"BI8L8GQ3WK2fPKRNu+QNc8NNu5Ugi5IJyDO9eQVdWRKDGCD2uduTLQACL+DruN8j9HGX7brMYErO2l7V",
+	"pe0bg+5XhDZu87yswb6rtHXEjD8mdPca3p8O+aI5ilXTUJLtM/aZxdCJt38YFF06BfMsv4Dn8P79iEw6",
+	"NJJO5RS7r6Q9D+99iUfvegeVN8CLf7Josnp9Qc8SFxZ0DlnmYEopYDH9BhgypztUJXnBVIiBPemTwf4h",
+	"3n3YS58zCyYcZM3YQ0/PjevPERLbQwRSKIeS1xZAjAqvtuPd7Qp9i9fzO5U+IUoGyvc5H5R5Z34dr1Bx",
+	"EW65nUqfYExZxAqPAkWLuQ/vWz/mHXh/NMAUFBXBfn9G97h+QoAjgzJ3Cu0UrCDVlNSa8Hri2YDCDkxg",
+	"bPbUjM3ZBAoIDEojWwMzZTahIJ+kEAKqUhxPKX02tYvlV3ry1EfUg3+N1JEpw7Hyp6F6qihpfM+lnTVE",
+	"N0XT0NUENr8thZ/eKbvWjHCgqsXJfzRSFYPEuQeDOXZ4EG8eVKknCADjt17JKh/cTNrfVwhTqcOv0ieP",
+	"5Bz/Av9xNnv9OEbj0B98FOse42Rn30HbXo+m+67PkzPQLOc6AdjIf0HfHUQVK5xjhQMPB+v0oCmYudA2",
+	"1R4rg/3DYb0BClfrlWhaJg1TSBW8F+TCfiq0r9ugmoSW7KRQkllbUKyf6ip6DFVX4/HKHI4h46Q88uZn",
+	"3fho55l0WilMIeqAwVbI7uX09l2ItvruG/gTF3K4wyK0K+K14kQk9oW7OHgatc9qZBpQkJvIPRApF7gE",
+	"v8DisjKTWK9A5GojHSJV/XwhXv9kwFXxXyXg+/8lWAvWnRFOL2mhgG0MjfAjtrEfXx7NqpbsH5FZhe8k",
+	"mK/q3YdL6n4tuZP/fPuGqH7mXweo4R5/lcGYhhIi8A58i9tZMfdDLP7nviECjtf9/2/Ia98QOG4gMLGZ",
+	"E1wIp2Rhk9dYF5HSr72n+HXAmg7omrRd42Ww/MaerpB8B25StmGX3dcJvbUiali+xEKyvHM9xLQAbiD6",
+	"gPgY2VDJbrWYKb0FbupIGSrR+f5BhXgv3cGLmjD8Qd+FWmS+YilKWfXChY+Fu4KjJF1VrPECu24fY/gB",
+	"ZAAWswaXD+r7YiQuNIVDA54AAbzRG/RXACqn+hoCbhUln0RMuBn1tSiY0G13uPElhtb6wCXuYIESX+z7",
+	"0QG/2R+WpEpi7dA7jTiUKHusDYV+5BRgP5YP5QnA+6HqZSHoXVOFvyqbuNwY3qzIqkmz9ihPm6ydFe4o",
+	"qoQ1/W9zxJpwyGGSr74Sks6yvQC350fkmjiATqWQly2lHAi/JlgcU8R4XlbhdvEb8twFzK64p0pbl5/J",
+	"MOboohm25ezao6cZOY+eewWNm0jp+o8vMnnM3/tCm9aR9O1a+U+RZcbxJYB5j8JS9GY8mGwrbQUXY2ne",
+	"5birrScpwdz20YzeWk1yeAMwSdquJ7n2Tejyv9N20/+w8PhrZqZGBlPBfUyqRQ85hl4o9SA2/AHEPmsG",
+	"WO55BwK7QB8+S5GAQw7KlUmH3Paq7yDwPy69YpqvH90s5R/1rdLrF6//vwEAAP//",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

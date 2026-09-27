@@ -1,6 +1,6 @@
 import { LifeBuoyIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation, useMatches, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useMatches } from 'react-router';
 
 import { useLogout, useMe } from '@/auth/session';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,12 @@ export interface ShellHandle {
   immersive?: boolean;
   /** 글을 읽고 쓰는 경로. 태블릿에서는 폰 너비보다 넓게 쓴다. */
   wide?: boolean;
+  /**
+   * 표와 그림을 여러 개 나란히 놓고 보는 경로. 큰 화면에서는 폭을 더 넓게 쓴다.
+   *
+   * 사용자 화면은 한 손으로 읽는 글이라 좁은 폭이 옳다. 이 단계는 그 규칙을 따를 까닭이 없는 화면에만 준다.
+   */
+  full?: boolean;
 }
 
 function isShellHandle(value: unknown): value is ShellHandle {
@@ -31,7 +37,6 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 export function AppShell() {
   const me = useMe();
   const logout = useLogout();
-  const navigate = useNavigate();
   const online = useOnline();
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const { pathname } = useLocation();
@@ -43,7 +48,12 @@ export function AppShell() {
     .filter(isShellHandle);
   const immersive = handles.some((handle) => handle.immersive === true);
   const wide = handles.some((handle) => handle.wide === true);
-  const column = cn('mx-auto w-full max-w-content px-gutter', wide && 'md:max-w-2xl');
+  const full = handles.some((handle) => handle.full === true);
+  const column = cn(
+    'mx-auto w-full max-w-content px-gutter',
+    wide && 'md:max-w-2xl',
+    full && 'lg:max-w-5xl xl:max-w-6xl',
+  );
 
   // 화면이 바뀌면 초점을 본문으로 옮긴다. 로그인 뒤처럼 누르던 버튼이 사라지는 이동에서는
   // 초점이 갈 곳을 잃고, 화면 낭독기 사용자는 화면이 바뀐 줄 모르게 된다.
@@ -57,9 +67,7 @@ export function AppShell() {
   function handleLogout() {
     setLogoutError(null);
     logout.mutate(undefined, {
-      // 경로 보호가 로그인 화면으로 보내면서 "보던 주소"를 함께 넘긴다. 스스로 로그아웃한 사람에게는 필요 없는 값이다.
-      // 같은 기기에서 다음 사람이 로그인했을 때 앞사람이 보던 화면으로 가지 않도록 값을 비운 채로 다시 보낸다.
-      onSuccess: () => void navigate('/login', { replace: true, state: null }),
+      // 성공했을 때 로그인 화면으로 옮기는 일은 useLogout이 세션을 비우는 것과 한 박자에 한다.
       // 로그아웃에 실패하면 세션이 살아 있다. 로그인 상태를 그대로 두고 알리기만 한다.
       onError: (error) => setLogoutError(describeError(error).message),
     });
@@ -112,6 +120,10 @@ export function AppShell() {
               </NavLink>
               <NavLink to="/diary" className={navLinkClass}>
                 일기장
+              </NavLink>
+              {/* 이 앱이 가장 보여 주고 싶은 화면이다. 첫 화면의 카드를 거치지 않고도 갈 수 있게 둔다. */}
+              <NavLink to="/trend" className={navLinkClass}>
+                변화 추세
               </NavLink>
             </nav>
             <Button

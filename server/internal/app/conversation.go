@@ -19,8 +19,11 @@ import (
 //
 // conversation은 대화 모델이다. 늦은 응답에 대비한 예비 모델을 쓰려면 그것을 감싼 LLM(ai.NewHedged)을 넘긴다.
 // gateModel은 위기 판별 모델이다. 대화를 만드는 모델과 다른 모델, 다른 지시문, 다른 호출이어야 한다.
-// enqueuer는 대화를 끝낼 때 일기 초안 작업을 넣는 쪽이고, nil이면 초안 작업을 넣지 않는다.
-func (d *Deps) NewConversationEngine(conversation, gateModel ai.LLM, enqueuer engine.DiaryEnqueuer) (*engine.Engine, error) {
+// diaries는 대화를 끝낼 때 일기 초안 작업을 넣는 쪽이고, signals는 마음 신호 추출 작업을 넣는 쪽이다.
+// 둘은 각각 nil일 수 있고, nil이면 그 작업을 넣지 않는다.
+func (d *Deps) NewConversationEngine(
+	conversation, gateModel ai.LLM, diaries engine.DiaryEnqueuer, signals engine.AnalysisEnqueuer,
+) (*engine.Engine, error) {
 	detector, err := d.newGate(gateModel)
 	if err != nil {
 		return nil, err
@@ -35,14 +38,15 @@ func (d *Deps) NewConversationEngine(conversation, gateModel ai.LLM, enqueuer en
 	}
 
 	e, err := engine.New(engine.Options{
-		Store:   d.Store,
-		Sealers: d.Sealers,
-		Gate:    detector,
-		Reply:   generator,
-		Phrases: catalogue,
-		Diary:   enqueuer,
-		Clock:   d.Clock,
-		Logger:  d.Logger,
+		Store:    d.Store,
+		Sealers:  d.Sealers,
+		Gate:     detector,
+		Reply:    generator,
+		Phrases:  catalogue,
+		Diary:    diaries,
+		Analysis: signals,
+		Clock:    d.Clock,
+		Logger:   d.Logger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create conversation engine: %w", err)
@@ -105,16 +109,20 @@ func (d *Deps) newConversationChannel(ctx context.Context) (*api.Conversation, e
 	if err != nil {
 		return nil, err
 	}
-	// 서버는 작업을 넣기만 한다. 대화를 끝내는 트랜잭션 안에서 초안 작업이 함께 등록된다.
+	// 서버는 작업을 넣기만 한다. 대화를 끝내는 트랜잭션 안에서 초안 작업과 신호 추출 작업이 함께 등록된다.
 	inserter, err := queue.NewInsertClient(d.Pool, d.Logger)
 	if err != nil {
 		return nil, err
 	}
-	enqueuer, err := d.NewDiaryEnqueuer(inserter)
+	diaries, err := d.NewDiaryEnqueuer(inserter)
 	if err != nil {
 		return nil, err
 	}
-	conversationEngine, err := d.NewConversationEngine(models.Conversation, models.Gate, enqueuer)
+	signals, err := d.NewAnalysisEnqueuer(inserter)
+	if err != nil {
+		return nil, err
+	}
+	conversationEngine, err := d.NewConversationEngine(models.Conversation, models.Gate, diaries, signals)
 	if err != nil {
 		return nil, err
 	}
@@ -139,10 +147,16 @@ func (d *Deps) newConversationChannel(ctx context.Context) (*api.Conversation, e
 
 // NewConversationSweeper는 연결이 끊긴 채 열려 있는 대화를 닫는 쪽을 만든다.
 // 기다리는 시간은 설정(DISCONNECT_END_AFTER)에서 온다.
-func (d *Deps) NewConversationSweeper(enqueuer engine.DiaryEnqueuer) (*engine.Sweeper, error) {
+//
+// 두 작업을 넣는 쪽을 여기에도 넘긴다. 사용자가 끝내기를 누르지 않고 창을 닫은 대화가 이 길로 닫히는데,
+// 그때 작업을 넣지 않으면 그 대화만 일기도 신호도 없이 남는다.
+func (d *Deps) NewConversationSweeper(
+	diaries engine.DiaryEnqueuer, signals engine.AnalysisEnqueuer,
+) (*engine.Sweeper, error) {
 	sweeper, err := engine.NewSweeper(engine.SweeperOptions{
 		Store:     d.Store,
-		Diary:     enqueuer,
+		Diary:     diaries,
+		Analysis:  signals,
 		Clock:     d.Clock,
 		Logger:    d.Logger,
 		IdleAfter: d.Config.Conversation.DisconnectEndAfter,
@@ -163,11 +177,15 @@ func (d *Deps) newSweepWorker() (*engine.SweepWorker, error) {
 	if err != nil {
 		return nil, err
 	}
-	enqueuer, err := d.NewDiaryEnqueuer(inserter)
+	diaries, err := d.NewDiaryEnqueuer(inserter)
 	if err != nil {
 		return nil, err
 	}
-	sweeper, err := d.NewConversationSweeper(enqueuer)
+	signals, err := d.NewAnalysisEnqueuer(inserter)
+	if err != nil {
+		return nil, err
+	}
+	sweeper, err := d.NewConversationSweeper(diaries, signals)
 	if err != nil {
 		return nil, err
 	}

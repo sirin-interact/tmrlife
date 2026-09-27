@@ -15,6 +15,11 @@
 //     시각(time.Time)에서 날짜 부분을 잘라 만들면 안 된다. recorddate.Of로 계산한 기록 날짜를 PGDate로 바꿔 넘기고,
 //     읽은 값은 RecordDate로 되돌린다. NULL일 수 있는 컬럼에는 NullablePGDate와 NullableRecordDate를 쓴다.
 //   - 발화는 AppendUtterance로 더한다. 대화를 잡아 둔 채 다음 순번을 읽으므로 동시에 더해도 순번이 겹치거나 비지 않는다.
+//   - 대화 하나의 분석 결과는 SaveConversationSignals로 저장한다. 여덟 항목을 배열로 받아 한 트랜잭션에 넣고
+//     그 대화의 분석을 done으로 닫는다. 신호 행을 낱개로 넣는 길은 없다. 일부 항목만 든 하루가 계산에 들어가면
+//     그날 관찰되지 않은 항목과 아직 뽑히지 않은 항목이 구별되지 않는다.
+//   - 읽어 온 신호 행은 SignalDaysByUser나 SignalDaysInRange로 계산 코어에 넘길 꼴로 바꾼다.
+//     취소된 행도 그대로 넘긴다. 계산에서 빼는 일은 코어가 한다.
 //   - 일기 글은 SaveDiaryDraft와 SaveDiaryBody로 저장한다. 일기는 하루에 하나라서 새 행인지 있는 행인지를 그날을 잡아 둔 뒤에야 알고,
 //     암호문에는 행 ID가 묶인다. 그래서 글 대신 잠그는 함수(SealFunc)를 받아 행이 정해진 뒤에 부른다.
 //   - 대화의 상태, 말한 쪽, 출처 같은 열거 값은 이 패키지의 상수를 쓴다. 테이블의 CHECK 제약과 같은 값인지 시험이 견준다.

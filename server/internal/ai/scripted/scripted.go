@@ -38,6 +38,8 @@ const (
 	Gate
 	// Diary는 사용자의 발화를 이어 붙여 1인칭 글을 만든다.
 	Diary
+	// SignalExtract는 번호가 붙은 사용자의 줄에서 낱말을 찾아 여덟 항목의 판단과 근거를 JSON으로 답한다.
+	SignalExtract
 )
 
 // DefaultTasks는 Options.Tasks를 비워 두었을 때 쓰는 표다. 서버의 지시문 ID에 맞춰 둔다.
@@ -49,6 +51,7 @@ func DefaultTasks() map[string]Behavior {
 		"conversation_crisis": CrisisFollow,
 		"gate":                Gate,
 		"diary":               Diary,
+		"signal_extract":      SignalExtract,
 	}
 }
 
@@ -122,7 +125,7 @@ func New(provider config.AIProvider, opts Options) (*LLM, error) {
 			return nil, errors.New("scripted: task ids must use only lowercase letters, digits, '_' and '-'")
 		}
 		switch behavior {
-		case Conversation, Reflect, CrisisFollow, Gate, Diary:
+		case Conversation, Reflect, CrisisFollow, Gate, Diary, SignalExtract:
 		default:
 			return nil, errors.New("scripted: unknown behavior")
 		}
@@ -185,6 +188,8 @@ func (l *LLM) run(ctx context.Context, req ai.Request, onDelta ai.DeltaFunc) (ai
 		text = l.gateReply(req)
 	case Diary:
 		text = diaryReply(req)
+	case SignalExtract:
+		text = signalReply(req)
 	}
 
 	if onDelta != nil {

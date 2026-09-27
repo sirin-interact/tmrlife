@@ -5,6 +5,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
+import { useNavigate } from 'react-router';
 
 import { fetchAuthRequirements, fetchMe, login, logout, signup } from '@/api/auth';
 import { ApiError } from '@/api/errors';
@@ -66,13 +67,25 @@ export function useSignup() {
   });
 }
 
+/**
+ * 로그아웃한다. 성공하면 로그인 상태를 비우고 로그인 화면으로 옮긴다.
+ *
+ * 화면을 옮기는 일까지 여기서 하는 까닭: 세션을 비우면 경로 보호가 곧바로 로그인 화면으로 보내면서
+ * "보던 주소"를 함께 넘긴다. 세션이 도중에 끝난 사람에게는 돌아갈 자리라서 필요한 값이지만,
+ * 스스로 로그아웃한 사람에게는 필요 없고, 같은 기기를 다음 사람이 이어서 쓰면 앞사람이 보던 화면으로 데려간다.
+ * 그래서 비우는 일과 옮기는 일을 한 박자에 한다. 둘을 나누면 그 사이에 화면이 한 번 그려져
+ * 경로 보호가 먼저 움직이고, 어느 쪽이 마지막에 남는지가 그때그때 달라진다.
+ */
 export function useLogout() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   return useMutation({
     mutationFn: logout,
-    onSuccess: async () => {
-      // 로그아웃 전에 출발한 조회가 늦게 도착해서 로그인 상태를 되살리지 않게 먼저 멈춘다.
-      await queryClient.cancelQueries({ queryKey: meQueryKey });
+    onSuccess: () => {
+      void navigate('/login', { replace: true, state: null });
+      // 로그아웃 전에 출발한 조회가 늦게 도착해서 로그인 상태를 되살리지 않게 취소를 먼저 건다.
+      // 기다리지는 않는다. 기다리면 아래 두 줄이 위 이동과 다른 박자가 된다.
+      void queryClient.cancelQueries({ queryKey: meQueryKey });
       queryClient.setQueryData(meQueryKey, null);
       // 남은 조회 결과에는 방금 로그아웃한 사람의 기록이 들어 있다. 같은 기기를 다른 사람이 이어서 쓸 수 있다.
       queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== meQueryKey[0] });

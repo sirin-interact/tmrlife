@@ -86,6 +86,7 @@ type Config struct {
 	Conversation   Conversation
 	WebSocket      WebSocket
 	DiaryJob       DiaryJob
+	AnalysisJob    AnalysisJob
 }
 
 type Session struct {
@@ -200,6 +201,16 @@ type LLM struct {
 	// GateTimeout은 위기 판별 모델의 답을 기다리는 시간이다. 넘기면 판별이 실패한 것으로 보고 규칙의 판정만으로 대응한다.
 	// 사용자는 이 시간이 지나야 답을 받으므로 길게 잡지 않는다.
 	GateTimeout time.Duration
+
+	// AnalysisMaxOutputTokens는 신호 추출 모델의 출력 한도다.
+	//
+	// 한 번의 답에 여덟 항목의 판단과 항목마다의 근거 발화가 모두 담기고, 겉으로 보이지 않는 생각 토큰도
+	// 이 한도에서 빠진다. 빠듯하면 답이 항목 중간에서 잘리고, 잘린 답은 여덟 항목을 채우지 못해 버려진다.
+	// 대화의 답과 달리 사람이 기다리는 값이 아니므로 넉넉하게 잡는다.
+	AnalysisMaxOutputTokens int
+	// AnalysisBudget은 신호 추출 모델의 답을 기다리는 시간이다. 대화가 끝난 뒤에 도는 일이라 느린 답도 기다릴 수 있지만,
+	// 아주 느린 응답 하나에 작업자 한 자리가 오래 묶이지 않게 끝을 둔다.
+	AnalysisBudget time.Duration
 }
 
 // Conversation은 말이 없는 대화와 끊긴 연결을 얼마나 기다릴지다.
@@ -230,6 +241,21 @@ type DiaryJob struct {
 // MaxAttempts는 처음 시도까지 더한 전체 시도 횟수다. 작업 큐에는 이 값을 넘긴다.
 func (d DiaryJob) MaxAttempts() int {
 	return d.Retries + 1
+}
+
+// AnalysisJob은 대화에서 마음 신호를 뽑는 작업의 설정이다.
+type AnalysisJob struct {
+	// Retries는 뽑지 못했을 때 다시 시도하는 횟수다. 처음 한 번은 여기에 들지 않는다.
+	//
+	// 다 쓰고도 뽑지 못하면 그 대화의 분석을 failed로 닫고 신호 행을 남기지 않는다.
+	// 일부 항목만 남기는 길은 없다. 그날은 분석이 끝날 때까지 대화하지 않은 날과 똑같이 다뤄진다.
+	// 초안과 달리 사용자가 화면에서 기다리는 값이 아니므로 초안보다 넉넉하게 잡아도 된다.
+	Retries int
+}
+
+// MaxAttempts는 처음 시도까지 더한 전체 시도 횟수다. 작업 큐에는 이 값을 넘긴다.
+func (a AnalysisJob) MaxAttempts() int {
+	return a.Retries + 1
 }
 
 // LogValue는 설정을 통째로 로그에 넘겨도 비밀 값이 나가지 않게 한다.
@@ -272,12 +298,15 @@ func (c Config) LogValue() slog.Value {
 		slog.Duration("llm_fallback_after", c.LLM.FallbackAfter),
 		slog.Duration("llm_reply_budget", c.LLM.ReplyBudget),
 		slog.Duration("gate_ai_timeout", c.LLM.GateTimeout),
+		slog.Int("llm_max_output_analysis", c.LLM.AnalysisMaxOutputTokens),
+		slog.Duration("llm_analysis_budget", c.LLM.AnalysisBudget),
 		slog.Duration("idle_check_after", c.Conversation.IdleCheckAfter),
 		slog.Duration("idle_end_after", c.Conversation.IdleEndAfter),
 		slog.Duration("disconnect_end_after", c.Conversation.DisconnectEndAfter),
 		slog.Int64("ws_max_message_bytes", c.WebSocket.MaxMessageBytes),
 		slog.String("ws_message_rate_limit", c.WebSocket.MessageRate.String()),
 		slog.Int("diary_job_retries", c.DiaryJob.Retries),
+		slog.Int("analysis_job_retries", c.AnalysisJob.Retries),
 	)
 }
 
@@ -355,6 +384,8 @@ type raw struct {
 	LLMThinkingAnalysis          string `env:"LLM_THINKING_ANALYSIS" envDefault:"low"`
 	LLMFallbackAfter             string `env:"LLM_FALLBACK_AFTER" envDefault:"3s"`
 	LLMReplyBudget               string `env:"LLM_REPLY_BUDGET" envDefault:"12s"`
+	LLMMaxOutputAnalysis         string `env:"LLM_MAX_OUTPUT_ANALYSIS" envDefault:"8192"`
+	LLMAnalysisBudget            string `env:"LLM_ANALYSIS_BUDGET" envDefault:"60s"`
 
 	// 기본값을 여기에 적지 않는다. 적지 않았다는 사실이 있어야 환경과 키를 보고 고를 수 있다.
 	AIProvider    string `env:"AI_PROVIDER"`
@@ -367,7 +398,8 @@ type raw struct {
 	WSMaxMessageBytes  string `env:"WS_MAX_MESSAGE_BYTES" envDefault:"16384"`
 	WSMessageRateLimit string `env:"WS_MESSAGE_RATE_LIMIT" envDefault:"20/1m"`
 
-	DiaryJobRetries string `env:"DIARY_JOB_RETRIES" envDefault:"3"`
+	DiaryJobRetries    string `env:"DIARY_JOB_RETRIES" envDefault:"3"`
+	AnalysisJobRetries string `env:"ANALYSIS_JOB_RETRIES" envDefault:"3"`
 }
 
 // Load는 프로세스의 환경 변수에서 설정을 읽는다.
@@ -530,6 +562,9 @@ func LoadFrom(environ map[string]string) (Config, error) {
 	cfg.Conversation = flow.conversation
 	cfg.WebSocket = flow.webSocket
 	cfg.DiaryJob = flow.diaryJob
+	cfg.AnalysisJob = flow.analysisJob
+	cfg.LLM.AnalysisBudget = flow.analysisBudget
+	cfg.LLM.AnalysisMaxOutputTokens = flow.analysisMaxOutputTokens
 	problems = append(problems, flowProblems...)
 
 	if len(problems) > 0 {
@@ -861,13 +896,24 @@ const (
 	minWSMessageBytes  = 1024
 	maxWSMessageBytes  = 1 << 20
 	maxDiaryJobRetries = 10
+	// 다시 시도할 때마다 모델을 한 번 더 부른다. 이보다 많은 값은 오타로 본다.
+	maxAnalysisJobRetries = 10
+	// 여덟 항목의 판단과 항목마다의 근거 발화가 담기는 답이다. 이보다 작으면 답이 항목 중간에서 잘린다.
+	minAnalysisMaxOutputTokens = 1024
+	maxAnalysisMaxOutputTokens = 1 << 16
+	// 대화가 끝난 뒤의 일이라 느린 답도 기다리지만, 작업자 한 자리를 몇 분씩 묶어 두는 값은 오타로 본다.
+	maxAnalysisBudget = 5 * time.Minute
 )
 
 type conversationFlow struct {
-	gateTimeout  time.Duration
-	conversation Conversation
-	webSocket    WebSocket
-	diaryJob     DiaryJob
+	gateTimeout    time.Duration
+	analysisBudget time.Duration
+	conversation   Conversation
+	webSocket      WebSocket
+	diaryJob       DiaryJob
+	analysisJob    AnalysisJob
+	// analysisMaxOutputTokens는 신호 추출 모델의 출력 한도다.
+	analysisMaxOutputTokens int
 }
 
 func loadConversationFlow(r raw) (conversationFlow, []Problem) {
@@ -881,6 +927,7 @@ func loadConversationFlow(r raw) (conversationFlow, []Problem) {
 		dst   *time.Duration
 	}{
 		{"GATE_AI_TIMEOUT", r.GateAITimeout, maxGateAITimeout, &flow.gateTimeout},
+		{"LLM_ANALYSIS_BUDGET", r.LLMAnalysisBudget, maxAnalysisBudget, &flow.analysisBudget},
 		{"IDLE_CHECK_AFTER", r.IdleCheckAfter, maxConversationWait, &flow.conversation.IdleCheckAfter},
 		{"IDLE_END_AFTER", r.IdleEndAfter, maxConversationWait, &flow.conversation.IdleEndAfter},
 		{"DISCONNECT_END_AFTER", r.DisconnectEndAfter, maxConversationWait, &flow.conversation.DisconnectEndAfter},
@@ -914,6 +961,18 @@ func loadConversationFlow(r raw) (conversationFlow, []Problem) {
 		problems = append(problems, Problem{Var: "DIARY_JOB_RETRIES", Reason: reason})
 	} else {
 		flow.diaryJob.Retries = n
+	}
+
+	if n, reason := parseIntInRange(r.AnalysisJobRetries, 0, maxAnalysisJobRetries); reason != "" {
+		problems = append(problems, Problem{Var: "ANALYSIS_JOB_RETRIES", Reason: reason})
+	} else {
+		flow.analysisJob.Retries = n
+	}
+
+	if n, reason := parseIntInRange(r.LLMMaxOutputAnalysis, minAnalysisMaxOutputTokens, maxAnalysisMaxOutputTokens); reason != "" {
+		problems = append(problems, Problem{Var: "LLM_MAX_OUTPUT_ANALYSIS", Reason: reason})
+	} else {
+		flow.analysisMaxOutputTokens = n
 	}
 	return flow, problems
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/sirin-interact/tmrlife/server/internal/analysis"
 	"github.com/sirin-interact/tmrlife/server/internal/clock"
 	"github.com/sirin-interact/tmrlife/server/internal/core/crisis"
 	"github.com/sirin-interact/tmrlife/server/internal/core/params"
@@ -57,6 +58,16 @@ type DiaryEnqueuer interface {
 	EnqueueTx(ctx context.Context, tx pgx.Tx, args diary.DraftArgs) error
 }
 
+// AnalysisEnqueuer는 대화를 끝내는 트랜잭션 안에서 마음 신호 추출 작업을 등록한다. *analysis.Enqueuer가 이것을 채운다.
+//
+// 초안 쪽과 달리 그 트랜잭션의 쿼리도 함께 받는다. 추출 쪽은 작업을 넣으면서 대화의 분석 상태를 pending으로 적어서,
+// "pending인 대화에는 언제나 작업이 있다"가 부르는 쪽의 기억이 아니라 구조로 지켜진다.
+//
+// 주지 않으면 추출 작업을 넣지 않고 분석 상태는 none으로 남는다. 그 대화는 계산에서 그냥 빠진다.
+type AnalysisEnqueuer interface {
+	EnqueueTx(ctx context.Context, tx pgx.Tx, q *db.Queries, args analysis.ExtractArgs) error
+}
+
 // Options는 엔진을 만드는 데 필요한 것이다.
 type Options struct {
 	Store   *store.Store
@@ -68,9 +79,11 @@ type Options struct {
 	// Phrases는 모델을 거치지 않고 나가는 말과 도움 자원이다.
 	Phrases *phrases.Catalogue
 	// Diary는 비워 둘 수 있다. 위의 DiaryEnqueuer 설명을 본다.
-	Diary  DiaryEnqueuer
-	Clock  clock.Clock
-	Logger *slog.Logger
+	Diary DiaryEnqueuer
+	// Analysis는 비워 둘 수 있다. 위의 AnalysisEnqueuer 설명을 본다.
+	Analysis AnalysisEnqueuer
+	Clock    clock.Clock
+	Logger   *slog.Logger
 	// Params가 빈 값이면 params.Default다. 관문의 판정에 쓰는 조정 값이 여기서 온다.
 	Params params.Params
 	// ContextTurns가 0이면 classifier.DefaultContextTurns다. AI 판별에 함께 보내는 직전 말의 수다.
@@ -123,7 +136,7 @@ func New(opts Options) (*Engine, error) {
 	}
 
 	e := &Engine{
-		closer:   closer{store: opts.Store, diary: opts.Diary, clock: opts.Clock},
+		closer:   closer{store: opts.Store, diary: opts.Diary, analysis: opts.Analysis, clock: opts.Clock},
 		sealers:  opts.Sealers,
 		gate:     opts.Gate,
 		reply:    opts.Reply,

@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { ApiError } from '@/api/errors';
@@ -27,8 +28,12 @@ function setup() {
     ...queryClient.getDefaultOptions(),
     queries: { ...queryClient.getDefaultOptions().queries, retryDelay: 0 },
   });
+  // useLogout은 성공하면 로그인 화면으로 옮기기까지 한다. 세션을 비우는 일과 한 박자에 해야 하기 때문이다.
+  // 그래서 이 고리들을 시험할 때도 경로가 있어야 한다.
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <AppProviders queryClient={queryClient}>{children}</AppProviders>
+    <AppProviders queryClient={queryClient}>
+      <MemoryRouter>{children}</MemoryRouter>
+    </AppProviders>
   );
   return { queryClient, wrapper };
 }

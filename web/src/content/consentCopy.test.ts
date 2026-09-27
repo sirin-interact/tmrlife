@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { CONSENT_COPY, CONSENT_TEXT, consentCopyFor } from '@/content/consentCopy';
 import { LEGAL_DOCUMENTS } from '@/content/legal/documents';
-
-// 화면 문구에 쓰지 않기로 한 말들. 이 앱은 마음 상태를 관찰하고 기록하는 도구이지 의료 서비스가 아니다.
-const AVOIDED_WORDS = ['우울', '진단', '판정', '검사', '위험도', '환자', '증상', '치료', '상담'];
+import { AVOIDED_WORDS } from '@/test/avoidedWords';
 
 describe('동의 문구', () => {
   const texts = [

@@ -50,6 +50,27 @@ export function HomePage() {
           </Button>
         </CardFooter>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <h2 className="text-xl leading-snug font-semibold">기록이 쌓이면 보이는 것</h2>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">
+            기분과 잠, 기운이 어떻게 지나왔는지 점으로 볼 수 있어요. 그렇게 본 까닭도 내 말로 확인할
+            수 있어요.
+          </p>
+        </CardContent>
+        <CardFooter>
+          <Button asChild variant="outline" className="w-full">
+            <Link to="/trend">변화 추세 보기</Link>
+          </Button>
+          <Button asChild variant="ghost" className="w-full">
+            {/* 오늘의 근거 화면. 아직 정리 중이면 그 화면이 조용히 알려 준다. */}
+            <Link to={`/signals/${today}`}>오늘 읽어 낸 신호 보기</Link>
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

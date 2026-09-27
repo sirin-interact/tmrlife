@@ -4,6 +4,7 @@
 //	server migrate up              앱 스키마와 작업 큐 스키마를 끝까지 올린다
 //	server migrate down            앱 스키마를 한 단계 내린다 (MIGRATE_ALLOW_DOWN=true일 때만, prod에서는 하지 않는다)
 //	server migrate status          적용 상태를 보여준다
+//	server seed demo               시연용 계정과 지난 며칠치 기록을 만든다 (prod에서는 하지 않는다)
 package main
 
 import (
@@ -47,6 +48,7 @@ const (
 const usage = `usage:
   server [serve]
   server migrate up|down|status
+  server seed demo --email=EMAIL --password=PASSWORD [--days=N] [--name=NAME]
 `
 
 func main() {
@@ -82,6 +84,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			return exitUsage
 		}
 		return migrate(ctx, args[0], stdout, stderr)
+	case "seed":
+		if len(args) == 0 || args[0] != "demo" {
+			_, _ = fmt.Fprint(stderr, usage)
+			return exitUsage
+		}
+		return seedDemo(ctx, args[1:], stdout, stderr)
 	case "help", "-h", "--help":
 		_, _ = fmt.Fprint(stdout, usage)
 		return exitOK

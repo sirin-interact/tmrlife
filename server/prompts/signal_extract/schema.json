@@ -1,0 +1,369 @@
+{
+  "type": "object",
+  "properties": {
+    "interest": {
+      "type": "object",
+      "description": "흥미와 즐거움 저하",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_mentioned",
+            "not_observed",
+            "observed"
+          ]
+        },
+        "explicitness": {
+          "type": "string",
+          "enum": [
+            "none",
+            "indirect",
+            "direct"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "근거를 옮긴 사용자 줄의 번호. 근거가 없으면 0"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "그 줄에서 글자 그대로 잘라 옮긴 토막. 근거가 없으면 빈 문자열"
+        }
+      },
+      "required": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ],
+      "propertyOrdering": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ]
+    },
+    "mood": {
+      "type": "object",
+      "description": "가라앉은 기분, 절망감",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_mentioned",
+            "not_observed",
+            "observed"
+          ]
+        },
+        "explicitness": {
+          "type": "string",
+          "enum": [
+            "none",
+            "indirect",
+            "direct"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "근거를 옮긴 사용자 줄의 번호. 근거가 없으면 0"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "그 줄에서 글자 그대로 잘라 옮긴 토막. 근거가 없으면 빈 문자열"
+        }
+      },
+      "required": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ],
+      "propertyOrdering": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ]
+    },
+    "sleep": {
+      "type": "object",
+      "description": "수면 문제",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_mentioned",
+            "not_observed",
+            "observed"
+          ]
+        },
+        "explicitness": {
+          "type": "string",
+          "enum": [
+            "none",
+            "indirect",
+            "direct"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "근거를 옮긴 사용자 줄의 번호. 근거가 없으면 0"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "그 줄에서 글자 그대로 잘라 옮긴 토막. 근거가 없으면 빈 문자열"
+        }
+      },
+      "required": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ],
+      "propertyOrdering": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ]
+    },
+    "fatigue": {
+      "type": "object",
+      "description": "피로, 기력 저하",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_mentioned",
+            "not_observed",
+            "observed"
+          ]
+        },
+        "explicitness": {
+          "type": "string",
+          "enum": [
+            "none",
+            "indirect",
+            "direct"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "근거를 옮긴 사용자 줄의 번호. 근거가 없으면 0"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "그 줄에서 글자 그대로 잘라 옮긴 토막. 근거가 없으면 빈 문자열"
+        }
+      },
+      "required": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ],
+      "propertyOrdering": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ]
+    },
+    "appetite": {
+      "type": "object",
+      "description": "식욕 변화",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_mentioned",
+            "not_observed",
+            "observed"
+          ]
+        },
+        "explicitness": {
+          "type": "string",
+          "enum": [
+            "none",
+            "indirect",
+            "direct"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "근거를 옮긴 사용자 줄의 번호. 근거가 없으면 0"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "그 줄에서 글자 그대로 잘라 옮긴 토막. 근거가 없으면 빈 문자열"
+        }
+      },
+      "required": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ],
+      "propertyOrdering": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ]
+    },
+    "self_blame": {
+      "type": "object",
+      "description": "자기 비난, 무가치감",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_mentioned",
+            "not_observed",
+            "observed"
+          ]
+        },
+        "explicitness": {
+          "type": "string",
+          "enum": [
+            "none",
+            "indirect",
+            "direct"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "근거를 옮긴 사용자 줄의 번호. 근거가 없으면 0"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "그 줄에서 글자 그대로 잘라 옮긴 토막. 근거가 없으면 빈 문자열"
+        }
+      },
+      "required": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ],
+      "propertyOrdering": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ]
+    },
+    "concentration": {
+      "type": "object",
+      "description": "집중 곤란",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_mentioned",
+            "not_observed",
+            "observed"
+          ]
+        },
+        "explicitness": {
+          "type": "string",
+          "enum": [
+            "none",
+            "indirect",
+            "direct"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "근거를 옮긴 사용자 줄의 번호. 근거가 없으면 0"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "그 줄에서 글자 그대로 잘라 옮긴 토막. 근거가 없으면 빈 문자열"
+        }
+      },
+      "required": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ],
+      "propertyOrdering": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ]
+    },
+    "psychomotor": {
+      "type": "object",
+      "description": "느려짐 또는 초조함",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_mentioned",
+            "not_observed",
+            "observed"
+          ]
+        },
+        "explicitness": {
+          "type": "string",
+          "enum": [
+            "none",
+            "indirect",
+            "direct"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "근거를 옮긴 사용자 줄의 번호. 근거가 없으면 0"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "그 줄에서 글자 그대로 잘라 옮긴 토막. 근거가 없으면 빈 문자열"
+        }
+      },
+      "required": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ],
+      "propertyOrdering": [
+        "status",
+        "explicitness",
+        "line",
+        "evidence"
+      ]
+    }
+  },
+  "required": [
+    "interest",
+    "mood",
+    "sleep",
+    "fatigue",
+    "appetite",
+    "self_blame",
+    "concentration",
+    "psychomotor"
+  ],
+  "propertyOrdering": [
+    "interest",
+    "mood",
+    "sleep",
+    "fatigue",
+    "appetite",
+    "self_blame",
+    "concentration",
+    "psychomotor"
+  ]
+}

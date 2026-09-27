@@ -21,7 +21,7 @@ WHERE id = $2
   AND status = 'active'
   AND array_position(ARRAY['none', 'reflected', 'asked'], check_state)
       <= array_position(ARRAY['none', 'reflected', 'asked'], $1::text)
-RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage, analysis_status
 `
 
 type AdvanceConversationCheckStateParams struct {
@@ -50,6 +50,7 @@ func (q *Queries) AdvanceConversationCheckState(ctx context.Context, arg Advance
 		&i.CreatedAt,
 		&i.CheckState,
 		&i.CrisisSpokenStage,
+		&i.AnalysisStatus,
 	)
 	return i, err
 }
@@ -61,7 +62,7 @@ WHERE id = $2
   AND user_id = $3
   AND status = 'active'
   AND crisis_spoken_stage <= $1
-RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage, analysis_status
 `
 
 type AdvanceConversationCrisisStageParams struct {
@@ -89,6 +90,49 @@ func (q *Queries) AdvanceConversationCrisisStage(ctx context.Context, arg Advanc
 		&i.CreatedAt,
 		&i.CheckState,
 		&i.CrisisSpokenStage,
+		&i.AnalysisStatus,
+	)
+	return i, err
+}
+
+const claimConversationAnalysis = `-- name: ClaimConversationAnalysis :one
+UPDATE conversations
+SET analysis_status = 'running'
+WHERE id = $1
+  AND user_id = $2
+  AND status <> 'active'
+  AND analysis_status IN ('none', 'pending', 'failed')
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage, analysis_status
+`
+
+type ClaimConversationAnalysisParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+// 끝난 대화의 신호 추출을 작업자 하나가 맡는다. 맡은 쪽만 행을 돌려받는다.
+//
+// 열려 있는 대화는 맡지 않는다. 아직 이어질 말이 남았는데 뽑으면 일부만 본 결과가 하루의 판단으로 굳는다.
+// 이미 끝난 분석(done)은 다시 맡지 않는다. 같은 대화의 신호 행은 유일 제약에 걸려 두 번 들어갈 수 없으므로,
+// 다시 맡아도 하는 일은 실패하는 것뿐이다.
+// 실패한 분석(failed)은 다시 맡는다. 모델의 실패는 대개 그 답 하나의 문제라 다시 해 볼 만하다.
+func (q *Queries) ClaimConversationAnalysis(ctx context.Context, arg ClaimConversationAnalysisParams) (Conversation, error) {
+	row := q.db.QueryRow(ctx, claimConversationAnalysis, arg.ID, arg.UserID)
+	var i Conversation
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.DayID,
+		&i.Status,
+		&i.StartedMode,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.EndReason,
+		&i.ProcessingStatus,
+		&i.CreatedAt,
+		&i.CheckState,
+		&i.CrisisSpokenStage,
+		&i.AnalysisStatus,
 	)
 	return i, err
 }
@@ -100,7 +144,7 @@ WHERE id = $1
   AND user_id = $2
   AND status = 'active'
   AND check_state = 'reflected'
-RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage, analysis_status
 `
 
 type ClaimDirectAskParams struct {
@@ -129,6 +173,7 @@ func (q *Queries) ClaimDirectAsk(ctx context.Context, arg ClaimDirectAskParams) 
 		&i.CreatedAt,
 		&i.CheckState,
 		&i.CrisisSpokenStage,
+		&i.AnalysisStatus,
 	)
 	return i, err
 }
@@ -144,7 +189,7 @@ VALUES (
     $5,
     $5
 )
-RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage, analysis_status
 `
 
 type CreateConversationParams struct {
@@ -178,6 +223,7 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 		&i.CreatedAt,
 		&i.CheckState,
 		&i.CrisisSpokenStage,
+		&i.AnalysisStatus,
 	)
 	return i, err
 }
@@ -199,7 +245,7 @@ WHERE c.id = $4
             AND u.created_at > $6::timestamptz
       )
   )
-RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage, analysis_status
 `
 
 type EndConversationParams struct {
@@ -239,12 +285,13 @@ func (q *Queries) EndConversation(ctx context.Context, arg EndConversationParams
 		&i.CreatedAt,
 		&i.CheckState,
 		&i.CrisisSpokenStage,
+		&i.AnalysisStatus,
 	)
 	return i, err
 }
 
 const getActiveConversation = `-- name: GetActiveConversation :one
-SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state, c.crisis_spoken_stage, d.record_date
+SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state, c.crisis_spoken_stage, c.analysis_status, d.record_date
 FROM conversations AS c
 JOIN days AS d ON d.id = c.day_id
 WHERE c.user_id = $1
@@ -274,13 +321,14 @@ func (q *Queries) GetActiveConversation(ctx context.Context, userID uuid.UUID) (
 		&i.Conversation.CreatedAt,
 		&i.Conversation.CheckState,
 		&i.Conversation.CrisisSpokenStage,
+		&i.Conversation.AnalysisStatus,
 		&i.RecordDate,
 	)
 	return i, err
 }
 
 const getConversation = `-- name: GetConversation :one
-SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state, c.crisis_spoken_stage, d.record_date
+SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state, c.crisis_spoken_stage, c.analysis_status, d.record_date
 FROM conversations AS c
 JOIN days AS d ON d.id = c.day_id
 WHERE c.id = $1
@@ -313,13 +361,40 @@ func (q *Queries) GetConversation(ctx context.Context, arg GetConversationParams
 		&i.Conversation.CreatedAt,
 		&i.Conversation.CheckState,
 		&i.Conversation.CrisisSpokenStage,
+		&i.Conversation.AnalysisStatus,
 		&i.RecordDate,
 	)
 	return i, err
 }
 
+const hasAnalysedConversationOnDate = `-- name: HasAnalysedConversationOnDate :one
+SELECT EXISTS (
+    SELECT 1
+    FROM conversations AS c
+    JOIN days AS d ON d.id = c.day_id
+    WHERE c.user_id = $1
+      AND d.user_id = $1
+      AND d.record_date = $2
+      AND c.analysis_status = 'done'
+)::boolean AS analysed
+`
+
+type HasAnalysedConversationOnDateParams struct {
+	UserID     uuid.UUID
+	RecordDate pgtype.Date
+}
+
+// 그날 신호 추출이 끝난 대화가 있는지다. 근거 화면이 "대화하지 않은 날"과 "아직 분석이 끝나지 않은 날"을 가리는 데 쓴다.
+// 신호 행이 있는지로 물어도 같은 답이 나온다. 여덟 항목과 done은 한 트랜잭션에서 함께 적히기 때문이다.
+func (q *Queries) HasAnalysedConversationOnDate(ctx context.Context, arg HasAnalysedConversationOnDateParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasAnalysedConversationOnDate, arg.UserID, arg.RecordDate)
+	var analysed bool
+	err := row.Scan(&analysed)
+	return analysed, err
+}
+
 const listConversationsByDay = `-- name: ListConversationsByDay :many
-SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state, c.crisis_spoken_stage,
+SELECT c.id, c.user_id, c.day_id, c.status, c.started_mode, c.started_at, c.ended_at, c.end_reason, c.processing_status, c.created_at, c.check_state, c.crisis_spoken_stage, c.analysis_status,
        EXISTS (
            SELECT 1 FROM gate_events AS g
            WHERE g.conversation_id = c.id
@@ -365,6 +440,7 @@ func (q *Queries) ListConversationsByDay(ctx context.Context, arg ListConversati
 			&i.Conversation.CreatedAt,
 			&i.Conversation.CheckState,
 			&i.Conversation.CrisisSpokenStage,
+			&i.Conversation.AnalysisStatus,
 			&i.Crisis,
 		); err != nil {
 			return nil, err
@@ -457,6 +533,49 @@ func (q *Queries) LockConversationForAppend(ctx context.Context, arg LockConvers
 	row := q.db.QueryRow(ctx, lockConversationForAppend, arg.ID, arg.UserID)
 	var i LockConversationForAppendRow
 	err := row.Scan(&i.ID, &i.Status)
+	return i, err
+}
+
+const setConversationAnalysisStatus = `-- name: SetConversationAnalysisStatus :one
+UPDATE conversations
+SET analysis_status = $1
+WHERE id = $2
+  AND user_id = $3
+  AND status <> 'active'
+  AND (analysis_status <> 'done' OR $1::text = 'done')
+RETURNING id, user_id, day_id, status, started_mode, started_at, ended_at, end_reason, processing_status, created_at, check_state, crisis_spoken_stage, analysis_status
+`
+
+type SetConversationAnalysisStatusParams struct {
+	AnalysisStatus string
+	ID             uuid.UUID
+	UserID         uuid.UUID
+}
+
+// 신호 추출의 진행 상태를 적는다. 끝난 대화에만 적는다.
+//
+// 이미 done인 대화의 상태는 바꾸지 않는다. done은 여덟 항목의 신호 행과 같은 트랜잭션에서만 적히는 값이라
+// (store.SaveConversationSignals), 뒤늦게 돌아온 작업자가 그 사실을 running이나 failed로 덮으면
+// "분석이 끝난 대화"라는 표시와 실제로 들어 있는 행이 어긋난다.
+// done을 다시 적는 것은 받아 준다. 같은 작업을 두 번 돌려도 결과가 같아야 한다.
+func (q *Queries) SetConversationAnalysisStatus(ctx context.Context, arg SetConversationAnalysisStatusParams) (Conversation, error) {
+	row := q.db.QueryRow(ctx, setConversationAnalysisStatus, arg.AnalysisStatus, arg.ID, arg.UserID)
+	var i Conversation
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.DayID,
+		&i.Status,
+		&i.StartedMode,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.EndReason,
+		&i.ProcessingStatus,
+		&i.CreatedAt,
+		&i.CheckState,
+		&i.CrisisSpokenStage,
+		&i.AnalysisStatus,
+	)
 	return i, err
 }
 

@@ -73,6 +73,24 @@ describe('HomePage', () => {
     expect(screen.getByRole('link', { name: '일기장 보기' })).toHaveAttribute('href', '/diary');
   });
 
+  it('변화 추세와 오늘의 근거 화면으로 가는 길이 있다', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-20T12:00:00.000Z'));
+    mockApi({ 'GET /api/v1/me': meWith({ timezone: 'Asia/Seoul' }) });
+
+    renderRoute('/');
+
+    expect(await screen.findByRole('link', { name: '변화 추세 보기' })).toHaveAttribute(
+      'href',
+      '/trend',
+    );
+    // 오늘의 근거 화면은 달력 날짜가 아니라 기록 날짜로 연다.
+    expect(screen.getByRole('link', { name: '오늘 읽어 낸 신호 보기' })).toHaveAttribute(
+      'href',
+      '/signals/2026-09-20',
+    );
+  });
+
   it('화면의 제목은 서비스 이름이다', async () => {
     mockApi({ 'GET /api/v1/me': meWith({}) });
 
