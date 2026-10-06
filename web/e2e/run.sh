@@ -177,8 +177,11 @@ log "API 서버를 띄운다 (${HOST}:${API_PORT})"
 # 마스터 키(DATA_KEK_V1)는 make가 넘겨준 개발용 값을 그대로 쓴다.
 # AI_PROVIDER를 여기서 못 박는 까닭: .env에 키가 있으면 서버는 실제 모델을 고른다.
 # 그러면 돌릴 때마다 답이 달라지고 돈이 들고 네트워크가 없으면 실패한다. 화면의 흐름을 보는 테스트가 기댈 것이 아니다.
+# VOICE_PROVIDER도 같은 까닭으로 못 박는다. 가짜는 브라우저의 가짜 마이크 소리가 1초 쌓일 때마다 대본의 문장을 알아듣고,
+# 답은 무음으로 읽어 준다. 음성 한 바퀴(소리 → 자막 → 답 → 소리)가 실제 공급자 없이 끝까지 돈다.
 APP_ENV=dev \
   AI_PROVIDER=scripted \
+  VOICE_PROVIDER=fake \
   HTTP_ADDR="${HOST}:${API_PORT}" \
   DATABASE_URL="$E2E_DATABASE_URL" \
   PUBLIC_ORIGIN="$WEB_ORIGIN" \

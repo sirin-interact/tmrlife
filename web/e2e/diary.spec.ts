@@ -2,10 +2,11 @@ import {
   aiMessages,
   endTalk,
   expect,
-  openTalk,
   OPENING,
+  openTalk,
   recordDateFromUrl,
   say,
+  showTranscript,
   signUp,
   test,
   uniqueEmail,
@@ -48,6 +49,7 @@ test('하루를 지우면 일기장이 비고, 다시 들어가면 새 대화로
 
   await test.step('지운 날의 대화는 남지 않고, 새 대화가 열린다', async () => {
     await page.goto('/talk');
+    await showTranscript(page);
     await expect(aiMessages(page)).toHaveCount(1);
     await expect(aiMessages(page).first()).toContainText(OPENING);
     await expect(userMessages(page)).toHaveCount(0);

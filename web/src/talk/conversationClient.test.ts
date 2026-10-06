@@ -1,14 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { FakeCapture, FakePlayer, notAllowedError, notFoundError } from '@/test/fakeAudio';
 import {
   aiText,
+  audioEnd,
+  audioStart,
   CONVERSATION_ID,
   fakeSockets,
+  finalTranscript,
+  listening as serverListening,
+  modeChanged,
+  partialTranscript,
   ready,
   RECORD_DATE,
   testResources,
   thinking,
   utterance,
+  voiceReady,
   type FakeSockets,
 } from '@/test/fakeSocket';
 import {
@@ -27,6 +35,8 @@ interface Harness {
   ids: string[];
   online: { value: boolean };
   handshakeFailed: ReturnType<typeof vi.fn<() => void>>;
+  capture: FakeCapture;
+  player: FakePlayer;
 }
 
 function setup(): Harness {
@@ -34,10 +44,14 @@ function setup(): Harness {
   const ids: string[] = [];
   const online = { value: true };
   const handshakeFailed = vi.fn<() => void>();
+  const capture = new FakeCapture();
+  const player = new FakePlayer();
   let counter = 0;
   const client = new ConversationClient({
     url: URL,
     createSocket: sockets.create,
+    createCapture: () => capture,
+    createPlayer: () => player,
     newId: () => {
       counter += 1;
       const id = `00000000-0000-4000-8000-${String(counter).padStart(12, '0')}`;
@@ -49,16 +63,16 @@ function setup(): Harness {
     isOnline: () => online.value,
     onHandshakeFailed: handshakeFailed,
   });
-  return { client, sockets, ids, online, handshakeFailed };
+  return { client, sockets, ids, online, handshakeFailed, capture, player };
 }
 
 /** 연결해서 새 대화의 ready와 첫 안부까지 받은 상태 */
-function started(): Harness {
+function started(readyMessage = ready()): Harness {
   const harness = setup();
   harness.client.start();
   const socket = harness.sockets.latest();
   socket.open();
-  socket.receive(ready());
+  socket.receive(readyMessage);
   socket.receive(aiText(0, '오늘 하루는 어떠셨어요?'));
   return harness;
 }
@@ -69,6 +83,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  localStorage.clear();
 });
 
 describe('대화 채널의 주소', () => {
@@ -645,5 +660,411 @@ describe('상태 알리기', () => {
     unsubscribe();
     sockets.latest().receive(aiText(0, '안녕하세요'));
     expect(listener).toHaveBeenCalledTimes(calls);
+  });
+});
+
+describe('음성', () => {
+  /** 음성을 쓸 수 있는 서버에 연결해 첫 안부까지 받고, 마이크를 켜 서버가 음성으로 바꿔 준 상태 */
+  async function listening(): Promise<Harness> {
+    const harness = started(voiceReady());
+    await harness.client.startVoice();
+    harness.sockets.latest().receive(modeChanged('voice'));
+    // 음성이 열리면 첫 한 마디를 저절로 청하고, 서버가 듣고 있다고 답해야 소리가 나간다.
+    harness.sockets.latest().receive(serverListening(true));
+    return harness;
+  }
+
+  it('음성을 켜면 마이크를 열고 음성 방식을 청한다. 서버가 바꿔 준 뒤에야 소리를 올려 보낸다', async () => {
+    const { client, sockets, capture } = started(voiceReady());
+    const socket = sockets.latest();
+    // 소리는 Blob이 아니라 ArrayBuffer로 받는다.
+    expect(socket.binaryType).toBe('arraybuffer');
+
+    const starting = client.startVoice();
+    expect(client.getState().mic).toBe('starting');
+    await starting;
+
+    expect(capture.on).toBe(true);
+    expect(client.getState().mic).toBe('on');
+    expect(socket.sentOfType('set_mode')).toEqual([{ type: 'set_mode', mode: 'voice' }]);
+
+    // 서버가 아직 글 방식으로 알고 있는 동안의 조각은 보내지 않는다. 보내면 잘못된 메시지로 거절된다.
+    capture.frame();
+    expect(socket.sentBinary).toHaveLength(0);
+
+    socket.receive(modeChanged('voice'));
+    expect(client.getState().mode).toBe('voice');
+    // 음성이 열리자마자 첫 한 마디를 청한다. 서버가 듣고 있다고 답하기 전의 조각은 버려질 것이라 보내지 않는다.
+    expect(socket.sentOfType('listen')).toEqual([{ type: 'listen', active: true }]);
+    capture.frame();
+    expect(socket.sentBinary).toHaveLength(0);
+
+    socket.receive(serverListening(true));
+    expect(client.getState().listening).toBe(true);
+    const frame = capture.frame();
+    expect(socket.sentBinary).toEqual([frame]);
+    expect(frame.byteLength).toBe(3200);
+  });
+
+  it('한 마디가 끝나 서버가 듣기를 멈추면 소리를 보내지 않고, 다시 청해야 보낸다', async () => {
+    const { client, sockets, capture } = await listening();
+    const socket = sockets.latest();
+    const levels: number[] = [];
+    client.subscribeLevel((level) => levels.push(level));
+
+    socket.receive(partialTranscript('오늘은 좀'));
+    socket.receive(finalTranscript('오늘은 좀 피곤했어', 'u1'));
+    socket.receive(serverListening(false));
+    expect(client.getState()).toMatchObject({ listening: false, partial: null, mic: 'on' });
+
+    // 멈춘 동안의 혼잣말은 보내지도, 구슬에 보이지도 않는다.
+    capture.frame();
+    capture.level(0.5);
+    expect(socket.sentBinary).toHaveLength(0);
+    expect(levels).toEqual([]);
+
+    client.listen();
+    expect(socket.sentOfType('listen')).toEqual([
+      { type: 'listen', active: true },
+      { type: 'listen', active: true },
+    ]);
+    // 서버가 답하기 전에 또 눌러도 거듭 청하지 않는다... 는 서버가 답한 뒤의 일이다. 답이 오면 소리가 간다.
+    socket.receive(serverListening(true));
+    const frame = capture.frame();
+    expect(socket.sentBinary).toEqual([frame]);
+    capture.level(0.5);
+    expect(levels).toEqual([0.5]);
+  });
+
+  it('내일이 말하는 동안 끊으면 멈추라고 알리고 바로 다음 한 마디를 청한다', async () => {
+    const { client, sockets, player } = await listening();
+    const socket = sockets.latest();
+    socket.receive(finalTranscript('오늘은 좀 피곤했어', 'u1'));
+    socket.receive(serverListening(false));
+    socket.receive(audioStart(1));
+    socket.receiveBinary(100);
+
+    client.interrupt();
+
+    expect(player.clears).toBe(1);
+    expect(socket.sentOfType('interrupt')).toEqual([{ type: 'interrupt' }]);
+    expect(socket.sentOfType('listen').at(-1)).toEqual({ type: 'listen', active: true });
+  });
+
+  it('소리 크기는 상태를 거치지 않고 구독자에게 간다. 내일이 말하는 동안은 재생의 크기만 간다', async () => {
+    const { client, sockets, capture, player } = await listening();
+    const levels: number[] = [];
+    client.subscribeLevel((level) => levels.push(level));
+    const before = client.getState();
+
+    capture.level(0.4);
+    player.level(0.9);
+    expect(levels).toEqual([0.4]);
+    expect(client.getState()).toBe(before);
+
+    sockets.latest().receive(audioStart(1));
+    capture.level(0.4);
+    player.level(0.9);
+    expect(levels).toEqual([0.4, 0.9]);
+  });
+
+  it('알아들은 말이 자막으로 오고, 끝점이 오면 목록에 올라 답을 기다린다. 소리는 재생기로 가고 다 나가야 끝난다', async () => {
+    const { client, sockets, player } = await listening();
+    const socket = sockets.latest();
+
+    socket.receive(partialTranscript('오늘은 좀'));
+    expect(client.getState().partial).toBe('오늘은 좀');
+
+    socket.receive(finalTranscript('오늘은 좀 피곤했어', 'u1'));
+    socket.receive(thinking('u1', 1));
+    expect(client.getState()).toMatchObject({ partial: null, awaitingReply: true });
+    expect(client.getState().messages.at(-1)).toMatchObject({
+      seq: 1,
+      text: '오늘은 좀 피곤했어',
+      delivery: 'sent',
+    });
+
+    socket.receive(aiText(2, '많이 지치셨나 봐요.'));
+    socket.receive(audioStart(2, 24_000));
+    const first = socket.receiveBinary(4_800);
+    const second = socket.receiveBinary(4_800);
+    expect(player.started).toEqual([24_000]);
+    expect(player.pushed).toEqual([first, second]);
+    expect(client.getState()).toMatchObject({ speaking: { seq: 2 }, awaitingReply: false });
+
+    socket.receive(audioEnd(2, 'done'));
+    // 서버는 다 보냈지만 받아 둔 소리가 남아 있다. 다 나가야 말하기가 끝난다.
+    expect(client.getState().speaking).toEqual({ seq: 2 });
+    player.drain();
+    expect(client.getState().speaking).toBeNull();
+  });
+
+  it('audio_start 없이 온 소리는 버린다', async () => {
+    const { sockets, player } = await listening();
+    sockets.latest().receiveBinary(100);
+    expect(player.pushed).toHaveLength(0);
+  });
+
+  it('받아 둔 소리가 너무 오래 나가지 않으면 기다림을 끝낸다', async () => {
+    const { client, sockets, player } = await listening();
+    const socket = sockets.latest();
+    socket.receive(audioStart(2));
+    socket.receiveBinary(4_800);
+    socket.receive(audioEnd(2, 'done'));
+    expect(player.isPlaying()).toBe(true);
+
+    vi.advanceTimersByTime(TIMING.drainTimeoutMs);
+
+    expect(client.getState().speaking).toBeNull();
+  });
+
+  it('소리 조각을 하나도 받지 못한 채 끝나면 바로 끝난다', async () => {
+    const { client, sockets } = await listening();
+    sockets.latest().receive(audioStart(2));
+    sockets.latest().receive(audioEnd(2, 'done'));
+    expect(client.getState().speaking).toBeNull();
+  });
+
+  it('끼어들면 받아 둔 소리를 바로 버리고 서버에 알린다. 늦게 온 조각은 버린다', async () => {
+    const { client, sockets, player } = await listening();
+    const socket = sockets.latest();
+    socket.receive(audioStart(2));
+    socket.receiveBinary(4_800);
+
+    client.interrupt();
+
+    expect(player.clears).toBe(1);
+    expect(client.getState().speaking).toBeNull();
+    expect(socket.sentOfType('interrupt')).toEqual([{ type: 'interrupt' }]);
+    socket.receiveBinary(100);
+    socket.receive(audioEnd(2, 'interrupted'));
+    expect(player.pushed).toHaveLength(1);
+  });
+
+  it('서버가 스스로 끊었거나 만들지 못했다고 알리면 받아 둔 소리를 버린다', async () => {
+    const { client, sockets, player } = await listening();
+    const socket = sockets.latest();
+    socket.receive(audioStart(2));
+    socket.receiveBinary(4_800);
+
+    socket.receive(audioEnd(2, 'interrupted'));
+
+    expect(player.clears).toBe(1);
+    expect(client.getState().speaking).toBeNull();
+
+    socket.receive(audioStart(3));
+    socket.receiveBinary(4_800);
+    socket.receive(audioEnd(3, 'failed'));
+    expect(player.clears).toBe(2);
+    expect(client.getState().speaking).toBeNull();
+  });
+
+  it('다 말했어요는 음성일 때만 finalize를 보낸다', async () => {
+    const { client, sockets } = started(voiceReady());
+    client.finalize();
+    expect(sockets.latest().sentOfType('finalize')).toHaveLength(0);
+
+    await client.startVoice();
+    sockets.latest().receive(modeChanged('voice'));
+    client.finalize();
+
+    expect(sockets.latest().sentOfType('finalize')).toEqual([{ type: 'finalize' }]);
+  });
+
+  it('음성을 끄면 마이크를 놓고 글 방식을 청한다. 서버의 답은 알림이 아니다', async () => {
+    const { client, sockets, capture } = await listening();
+    const socket = sockets.latest();
+
+    client.stopVoice();
+
+    expect(capture.on).toBe(false);
+    expect(client.getState().mic).toBe('off');
+    expect(socket.sentOfType('set_mode').at(-1)).toEqual({ type: 'set_mode', mode: 'chat' });
+    expect(socket.sentBinary).toHaveLength(0);
+
+    socket.receive(modeChanged('chat'));
+    expect(client.getState()).toMatchObject({ mode: 'chat', notice: null });
+  });
+
+  it('음성을 청해 둔 채로 끄면, 서버가 음성으로 바꿔 줘도 바로 글로 되돌린다', async () => {
+    const { client, sockets } = started(voiceReady());
+    await client.startVoice();
+    client.stopVoice();
+
+    sockets.latest().receive(modeChanged('voice'));
+
+    expect(sockets.latest().sentOfType('set_mode')).toEqual([
+      { type: 'set_mode', mode: 'voice' },
+      { type: 'set_mode', mode: 'chat' },
+    ]);
+  });
+
+  it('서버가 음성을 쓸 수 없다고 하면 마이크를 놓고 글로 이어간다', async () => {
+    const { client, sockets, capture, player } = await listening();
+    const socket = sockets.latest();
+    socket.receive(audioStart(1));
+    socket.receiveBinary(100);
+
+    socket.receive({ type: 'error', code: 'voice_unavailable' });
+    socket.receive(modeChanged('chat'));
+
+    expect(capture.on).toBe(false);
+    expect(player.clears).toBe(1);
+    expect(client.getState()).toMatchObject({
+      mode: 'chat',
+      mic: 'off',
+      speaking: null,
+      notice: 'voice_unavailable',
+    });
+    expect(socket.sentOfType('set_mode')).toHaveLength(1);
+    // 글로 이어가는 데 지장이 없다.
+    expect(client.send('그럼 글로 할게')).toBe(true);
+  });
+
+  it('바라지 않았는데 글로 내려오면 음성이 죽은 것이다. 마이크를 놓고 알린다', async () => {
+    const { client, sockets, capture } = await listening();
+
+    sockets.latest().receive(modeChanged('chat'));
+
+    expect(capture.on).toBe(false);
+    expect(client.getState()).toMatchObject({
+      mode: 'chat',
+      mic: 'off',
+      notice: 'voice_unavailable',
+    });
+  });
+
+  it('연결이 끊겼다 이어지면 처음부터 음성으로 열고, 서버가 글로 열어 주면 다시 음성을 청한다', async () => {
+    const { client, sockets, capture, player } = await listening();
+    sockets.latest().receive(audioStart(1));
+    sockets.latest().receiveBinary(100);
+
+    sockets.latest().drop();
+
+    // 소리는 연결과 함께 끊겼다. 마이크는 그대로 켜 둔다.
+    expect(player.clears).toBe(1);
+    expect(client.getState()).toMatchObject({ phase: 'reconnecting', mic: 'on', speaking: null });
+    capture.frame();
+
+    vi.advanceTimersByTime(TIMING.reconnectBaseMs);
+    const second = sockets.latest();
+    second.open();
+    expect(second.sent).toEqual([{ type: 'start', mode: 'voice' }]);
+
+    second.receive(voiceReady({ resumed: true, mode: 'voice' }));
+    expect(second.sentOfType('set_mode')).toHaveLength(0);
+    // 음성으로 열렸으니 바로 한 마디를 청한다.
+    expect(second.sentOfType('listen')).toEqual([{ type: 'listen', active: true }]);
+    second.receive(serverListening(true));
+    const frame = capture.frame();
+    expect(second.sentBinary).toEqual([frame]);
+
+    // 음성을 모르는 옛 서버처럼 글로 열어 주면 다시 청한다.
+    second.drop();
+    vi.advanceTimersByTime(TIMING.reconnectBaseMs);
+    const third = sockets.latest();
+    third.open();
+    third.receive(voiceReady({ resumed: true, mode: 'chat' }));
+    expect(third.sentOfType('set_mode')).toEqual([{ type: 'set_mode', mode: 'voice' }]);
+  });
+
+  it('마이크 권한이 거절되면 그렇게 표시하고, 마이크가 없을 때는 다르게 알린다. 다시 켤 수 있다', async () => {
+    const { client, sockets, capture } = started(voiceReady());
+
+    capture.failWith = notAllowedError();
+    await client.startVoice();
+    expect(client.getState()).toMatchObject({ mic: 'denied', notice: 'mic_denied' });
+    expect(sockets.latest().sentOfType('set_mode')).toHaveLength(0);
+
+    capture.failWith = notFoundError();
+    await client.startVoice();
+    expect(client.getState()).toMatchObject({ mic: 'failed', notice: 'mic_missing' });
+
+    capture.failWith = null;
+    await client.startVoice();
+    expect(client.getState()).toMatchObject({ mic: 'on', notice: null });
+  });
+
+  it('마이크가 열렸는데 한동안 소리가 전혀 없으면 알리고, 소리가 들어오면 거둔다', async () => {
+    const { client, capture } = await listening();
+
+    // 소리 없는 장치는 정확히 0을 보낸다.
+    for (let i = 0; i < 20; i += 1) capture.level(0);
+    vi.advanceTimersByTime(TIMING.silentMicMs - 1);
+    expect(client.getState().notice).toBeNull();
+    vi.advanceTimersByTime(1);
+    expect(client.getState().notice).toBe('mic_silent');
+    expect(client.getState().mic).toBe('on');
+
+    capture.level(0.2);
+    expect(client.getState().notice).toBeNull();
+
+    // 다시 조용해져도 처음부터 다시 잰다.
+    capture.level(0);
+    vi.advanceTimersByTime(TIMING.silentMicMs - 1);
+    expect(client.getState().notice).toBeNull();
+  });
+
+  it('내일이 답을 준비하거나 말하는 동안의 조용함은 세지 않는다', async () => {
+    const { client, sockets, capture } = await listening();
+    const socket = sockets.latest();
+
+    socket.receive(finalTranscript('오늘은 좀 피곤했어', '11111111-1111-4111-8111-111111111111'));
+    expect(client.getState().awaitingReply).toBe(true);
+    capture.level(0);
+    vi.advanceTimersByTime(TIMING.silentMicMs * 2);
+    expect(client.getState().notice).toBeNull();
+
+    // 마이크를 끄면 재던 것도 그만둔다.
+    client.stopVoice();
+    vi.advanceTimersByTime(TIMING.silentMicMs * 2);
+    expect(client.getState().notice).toBeNull();
+  });
+
+  it('마이크를 켜는 사이에 끄면 켜지자마자 놓는다', async () => {
+    const { client, sockets, capture } = started(voiceReady());
+
+    const starting = client.startVoice();
+    client.stopVoice();
+    await starting;
+
+    expect(capture.on).toBe(false);
+    expect(client.getState().mic).toBe('off');
+    expect(sockets.latest().sentOfType('set_mode')).toHaveLength(0);
+  });
+
+  it('대화가 끝나면 마이크와 재생기를 놓는다', async () => {
+    const { client, sockets, capture, player } = await listening();
+    sockets.latest().receive(audioStart(1));
+
+    sockets.latest().receive({
+      type: 'ended',
+      reason: 'user',
+      record_date: RECORD_DATE,
+      diary_expected: false,
+    });
+
+    expect(capture.on).toBe(false);
+    expect(player.stops).toBe(1);
+    expect(client.getState().mic).toBe('off');
+  });
+
+  it('화면을 떠나면 마이크를 놓는다', async () => {
+    const { client, capture } = await listening();
+
+    client.stop();
+
+    expect(capture.on).toBe(false);
+    expect(client.getState().mic).toBe('off');
+  });
+
+  it('마지막으로 고른 방식을 기억한다', async () => {
+    const { client } = started(voiceReady());
+
+    await client.startVoice();
+    expect(localStorage.getItem('naeil.talk.mode')).toBe('voice');
+
+    client.stopVoice();
+    expect(localStorage.getItem('naeil.talk.mode')).toBe('chat');
   });
 });

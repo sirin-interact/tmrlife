@@ -1,9 +1,9 @@
-import type { Resource, WsUtterance } from '@/api/types';
+import type { ConversationMode, Resource, WsUtterance } from '@/api/types';
 import type { EndReason, ServerMessage } from '@/talk/messages';
 
 /**
- * 대화 화면의 상태. 소켓도 타이머도 모르는 순수한 계산이다.
- * 무슨 일이 일어났는지(사건)를 받아 다음 상태를 돌려준다. 소켓을 열고 다시 보내는 일은 ConversationClient가 한다.
+ * 대화 화면의 상태. 소켓도 타이머도 마이크도 모르는 순수한 계산이다.
+ * 무슨 일이 일어났는지(사건)를 받아 다음 상태를 돌려준다. 소켓을 열고 다시 보내고 마이크를 켜는 일은 ConversationClient가 한다.
  */
 
 export type ConnectionPhase =
@@ -21,6 +21,20 @@ export type ConnectionPhase =
   | 'ended';
 
 export type Delivery = 'sending' | 'sent' | 'failed';
+
+/** 이 기기의 마이크 상태. 서버가 아는 대화 방식(mode)과는 다른 것이다. */
+export type MicState =
+  | 'off'
+  /** 권한을 묻고 오디오 장치를 여는 중 */
+  | 'starting'
+  | 'on'
+  /** 브라우저가 마이크 권한을 거절했다. 설정에서 허용해야 다시 켤 수 있다. */
+  | 'denied'
+  /** 마이크가 없거나 열지 못했다. */
+  | 'failed';
+
+/** 마이크를 켜지 못한 까닭. 안내 문구가 달라진다. */
+export type MicFailure = 'denied' | 'missing' | 'insecure' | 'failed';
 
 export interface ChatMessage {
   /** 화면 목록의 키. 서버가 순번을 주기 전에도 있어야 해서 글은 보낼 때 붙인 식별자로 만든다. */
@@ -44,7 +58,19 @@ export type TalkNotice =
   /** 쉬는 사이에 앞의 대화가 끝나서 새 대화로 이어졌다 */
   | 'new_conversation'
   /** 서버와 말이 맞지 않는다. 설치된 앱이 옛 판일 때 생긴다. */
-  | 'protocol';
+  | 'protocol'
+  /** 서버가 음성을 열 수 없거나 더 이어갈 수 없어 글로 내려왔다 */
+  | 'voice_unavailable'
+  /** 브라우저가 마이크 권한을 거절했다 */
+  | 'mic_denied'
+  /** 쓸 수 있는 마이크가 없다 */
+  | 'mic_missing'
+  /** 안전하지 않은 주소(http의 다른 기기)라 브라우저가 마이크를 내주지 않는다 */
+  | 'mic_insecure'
+  /** 마이크는 열렸는데 소리가 전혀 들어오지 않는다(소리 없는 가상 마이크, 꺼진 입력 장치) */
+  | 'mic_silent'
+  /** 마이크를 열지 못했다(장치 오류, 오디오 모듈을 받지 못함) */
+  | 'mic_failed';
 
 export interface EndedInfo {
   /** 'elsewhere'는 이 화면이 모르는 사이에(다른 기기, 오랜 무응답) 끝나 있었다는 뜻이다. */
@@ -70,6 +96,22 @@ export interface ConversationState {
   notice: TalkNotice | null;
   /** 방금 도착한 AI의 말. 화면 낭독기에 읽어 줄 것만 담는다. 이어가는 대화의 지난 발화는 담지 않는다. */
   arrived: { seq: number; text: string } | null;
+  /** 서버가 알고 있는 실제 대화 방식. 'voice'일 때만 소리를 올려 보낸다. */
+  mode: ConversationMode;
+  /**
+   * 서버가 지금 사용자의 말을 듣고 있는지. 한 번에 한 마디만 듣는다. 끝점이 오면 서버가 스스로 멈추고,
+   * 사용자가 구슬을 눌러 다시 청할 때까지 소리를 보내지 않는다. 혼잣말과 주변 말이 턴이 되지 않게 하려는 것이다.
+   */
+  listening: boolean;
+  /** 이 서버가 음성을 쓸 수 있는지. 거짓이면 음성으로 바꾸는 버튼을 두지 않는다. */
+  voiceAvailable: boolean;
+  /** 지금 말하고 있는 한 마디의 중간 자막. 끝점이 오거나 턴이 돌기 시작하면 비운다. */
+  partial: string | null;
+  /** 어느 말의 소리를 들려주고 있는지. 재생이 다 끝나야 비운다. */
+  speaking: { seq: number } | null;
+  /** 소리가 붙은 마지막 말의 순번. 화면이 그 말을 글로만 온 것처럼 시간으로 흉내 내지 않게 한다. */
+  voicedSeq: number | null;
+  mic: MicState;
 }
 
 export type ConversationEvent =
@@ -85,7 +127,18 @@ export type ConversationEvent =
   | { type: 'end_requested' }
   /** 끝내기를 보낸 뒤 답을 받기 전에 연결이 끊겼다. 서버는 끝냈을 가능성이 높다. */
   | { type: 'ended_unconfirmed' }
-  | { type: 'notice_dismissed' };
+  | { type: 'notice_dismissed' }
+  /** 마이크를 켜거나 끄는 중의 상태 */
+  | { type: 'mic'; mic: 'off' | 'starting' | 'on' }
+  | { type: 'mic_failed'; reason: MicFailure }
+  /** 마이크가 열린 채 한동안 아무 소리도 오지 않았다 */
+  | { type: 'mic_silent' }
+  /** 소리가 다시 들어온다. 무음 알림을 거둔다. */
+  | { type: 'mic_sound' }
+  /** 서버가 이쪽이 바라지 않았는데 글로 내려 보냈다(음성이 죽었다). */
+  | { type: 'voice_dropped' }
+  /** 받아 둔 소리를 끝까지 들려줬거나, 끼어들어 버렸다. */
+  | { type: 'playback_finished'; seq: number };
 
 export const initialConversationState: ConversationState = {
   phase: 'connecting',
@@ -99,6 +152,13 @@ export const initialConversationState: ConversationState = {
   diaryReady: false,
   notice: null,
   arrived: null,
+  mode: 'chat',
+  listening: false,
+  voiceAvailable: false,
+  partial: null,
+  speaking: null,
+  voicedSeq: null,
+  mic: 'off',
 };
 
 function fromUtterance(utterance: WsUtterance): ChatMessage {
@@ -147,6 +207,37 @@ function updateMessage(
   );
 }
 
+function applyTranscript(
+  state: ConversationState,
+  message: Extract<ServerMessage, { type: 'transcript' }>,
+): ConversationState {
+  if (!message.final) {
+    return { ...state, partial: message.text === '' ? null : message.text };
+  }
+
+  const clientMessageId = message.client_message_id;
+  if (clientMessageId === undefined) {
+    // 식별자가 없으면 화면에 올릴 수 없지만, 그 말로 턴이 도는 것은 같다. 답을 기다리는 표시만 둔다.
+    return { ...state, partial: null, awaitingReply: true };
+  }
+  const exists = state.messages.some((item) => item.clientMessageId === clientMessageId);
+  const messages = exists
+    ? updateMessage(state.messages, clientMessageId, { text: message.text })
+    : [
+        ...state.messages,
+        {
+          key: `c:${clientMessageId}`,
+          seq: null,
+          speaker: 'user' as const,
+          text: message.text,
+          clientMessageId,
+          // 서버가 알아들은 말이라 이미 서버에 있다. 보내는 중이 아니다.
+          delivery: 'sent' as const,
+        },
+      ];
+  return { ...state, messages, partial: null, awaitingReply: true, notice: null };
+}
+
 function applyServerMessage(state: ConversationState, message: ServerMessage): ConversationState {
   switch (message.type) {
     case 'ready': {
@@ -167,6 +258,10 @@ function applyServerMessage(state: ConversationState, message: ServerMessage): C
         resources: message.resources_pinned ? state.resources : null,
         notice: continued ? state.notice : 'new_conversation',
         arrived: null,
+        mode: message.mode,
+        voiceAvailable: message.voice_available,
+        partial: null,
+        speaking: null,
       };
     }
 
@@ -181,6 +276,8 @@ function applyServerMessage(state: ConversationState, message: ServerMessage): C
           }),
         ),
         awaitingReply: true,
+        // 턴이 돌기 시작했다. 중간 자막은 그 말의 확정본이 목록에 올랐으니 더 보일 까닭이 없다.
+        partial: null,
         notice:
           state.notice === 'slow_down' || state.notice === 'send_failed' ? null : state.notice,
       };
@@ -227,10 +324,38 @@ function applyServerMessage(state: ConversationState, message: ServerMessage): C
           diaryExpected: message.diary_expected,
         },
         notice: null,
+        partial: null,
+        speaking: null,
+        mic: 'off',
       };
 
     case 'diary_ready':
       return { ...state, diaryReady: true };
+
+    case 'mode':
+      return message.mode === 'voice'
+        ? { ...state, mode: 'voice' }
+        : // 글로 내려왔다. 소리는 더 오지 않고, 마이크는 ConversationClient가 거둔다.
+          { ...state, mode: 'chat', listening: false, partial: null, speaking: null, mic: 'off' };
+
+    case 'listening':
+      // 듣기를 멈추면 지금 말하던 한 마디의 중간 자막도 끝난 것이다.
+      return {
+        ...state,
+        listening: message.active,
+        partial: message.active ? state.partial : null,
+      };
+
+    case 'transcript':
+      return applyTranscript(state, message);
+
+    case 'audio_start':
+      return { ...state, speaking: { seq: message.seq }, voicedSeq: message.seq };
+
+    case 'audio_end':
+      // 끝까지 보냈으면 받아 둔 소리가 다 나갈 때까지 들려준다. 그 끝은 playback_finished가 알린다.
+      if (message.reason === 'done') return state;
+      return state.speaking?.seq === message.seq ? { ...state, speaking: null } : state;
 
     case 'error':
       return applyServerError(state, message.code, message.client_message_id);
@@ -279,6 +404,20 @@ function applyServerError(
         ending: false,
         ended: { reason: 'elsewhere', recordDate: state.recordDate, diaryExpected: null },
         notice: null,
+        partial: null,
+        speaking: null,
+        mic: 'off',
+      };
+
+    case 'voice_unavailable':
+      // 대화는 글로 이어진다. 답을 기다리던 글이 있으면 그대로 기다린다.
+      return {
+        ...state,
+        mode: 'chat',
+        mic: 'off',
+        partial: null,
+        speaking: null,
+        notice: 'voice_unavailable',
       };
 
     case 'invalid_message':
@@ -286,6 +425,19 @@ function applyServerError(
     case 'already_started':
     case 'unsupported_mode':
       return { ...state, awaitingReply: false, notice: 'protocol' };
+  }
+}
+
+function applyMicFailure(state: ConversationState, reason: MicFailure): ConversationState {
+  switch (reason) {
+    case 'denied':
+      return { ...state, mic: 'denied', notice: 'mic_denied' };
+    case 'missing':
+      return { ...state, mic: 'failed', notice: 'mic_missing' };
+    case 'insecure':
+      return { ...state, mic: 'failed', notice: 'mic_insecure' };
+    case 'failed':
+      return { ...state, mic: 'failed', notice: 'mic_failed' };
   }
 }
 
@@ -308,17 +460,28 @@ export function conversationReducer(
           state.conversationId === null && state.messages.length === 0
             ? 'connecting'
             : 'reconnecting',
+        // 소리는 연결과 함께 끊긴다. 새 연결에서는 audio_start부터 다시 온다. 듣기도 새 연결에서 다시 청한다.
+        partial: null,
+        listening: false,
+        speaking: null,
       };
 
     case 'disconnected':
-      return { ...state, phase: 'reconnecting' };
+      return { ...state, phase: 'reconnecting', partial: null, speaking: null, listening: false };
 
     case 'gave_up':
-      return { ...state, phase: 'failed' };
+      return { ...state, phase: 'failed', partial: null, speaking: null };
 
     case 'taken_over':
-      // 이 연결로는 답이 오지 않는다. 기다리는 표시를 남겨 두지 않는다.
-      return { ...state, phase: 'taken_over', awaitingReply: false };
+      // 이 연결로는 답이 오지 않는다. 기다리는 표시를 남겨 두지 않는다. 마이크는 이어받은 화면의 몫이다.
+      return {
+        ...state,
+        phase: 'taken_over',
+        awaitingReply: false,
+        partial: null,
+        speaking: null,
+        mic: 'off',
+      };
 
     case 'server':
       return applyServerMessage(state, event.message);
@@ -368,9 +531,53 @@ export function conversationReducer(
         ending: false,
         ended: { reason: 'user', recordDate: state.recordDate, diaryExpected: null },
         notice: null,
+        partial: null,
+        speaking: null,
+        mic: 'off',
       };
 
     case 'notice_dismissed':
       return { ...state, notice: null };
+
+    case 'mic':
+      // 마이크를 끄면 중간 자막도 의미를 잃는다. 켜지는 중에는 지난 거절 알림을 거둔다.
+      return {
+        ...state,
+        mic: event.mic,
+        listening: event.mic === 'off' ? false : state.listening,
+        partial: event.mic === 'off' ? null : state.partial,
+        notice:
+          (event.mic === 'starting' &&
+            (state.notice === 'mic_denied' ||
+              state.notice === 'mic_missing' ||
+              state.notice === 'mic_insecure' ||
+              state.notice === 'mic_failed')) ||
+          state.notice === 'mic_silent'
+            ? null
+            : state.notice,
+      };
+
+    case 'mic_failed':
+      return applyMicFailure(state, event.reason);
+
+    case 'mic_silent':
+      return state.mic === 'on' ? { ...state, notice: 'mic_silent' } : state;
+
+    case 'mic_sound':
+      return state.notice === 'mic_silent' ? { ...state, notice: null } : state;
+
+    case 'voice_dropped':
+      return {
+        ...state,
+        mode: 'chat',
+        listening: false,
+        mic: 'off',
+        partial: null,
+        speaking: null,
+        notice: 'voice_unavailable',
+      };
+
+    case 'playback_finished':
+      return state.speaking?.seq === event.seq ? { ...state, speaking: null } : state;
   }
 }

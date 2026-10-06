@@ -958,9 +958,9 @@ export interface components {
             stage: components["schemas"]["ReviewStage"];
         };
         /** @description 클라이언트가 대화 채널로 보내는 메시지. `type`으로 가린다 */
-        WsClientMessage: components["schemas"]["WsStart"] | components["schemas"]["WsUserText"] | components["schemas"]["WsEnd"];
+        WsClientMessage: components["schemas"]["WsStart"] | components["schemas"]["WsUserText"] | components["schemas"]["WsEnd"] | components["schemas"]["WsSetMode"] | components["schemas"]["WsInterrupt"] | components["schemas"]["WsFinalize"] | components["schemas"]["WsListen"];
         /** @description 서버가 대화 채널로 보내는 메시지. `type`으로 가린다 */
-        WsServerMessage: components["schemas"]["WsReady"] | components["schemas"]["WsThinking"] | components["schemas"]["WsAIText"] | components["schemas"]["WsResources"] | components["schemas"]["WsEnded"] | components["schemas"]["WsDiaryReady"] | components["schemas"]["WsError"];
+        WsServerMessage: components["schemas"]["WsReady"] | components["schemas"]["WsThinking"] | components["schemas"]["WsAIText"] | components["schemas"]["WsResources"] | components["schemas"]["WsEnded"] | components["schemas"]["WsDiaryReady"] | components["schemas"]["WsError"] | components["schemas"]["WsMode"] | components["schemas"]["WsTranscript"] | components["schemas"]["WsAudioStart"] | components["schemas"]["WsAudioEnd"] | components["schemas"]["WsListening"];
         /**
          * @description 대화를 시작한다. 연결마다 한 번 보낸다. 열린 대화가 있으면 새로 만들지 않고 그 대화를 이어간다.
          *     기록 날짜가 지나도록 열려 있던 대화는 서버가 먼저 끝내고 새 대화를 연다.
@@ -971,7 +971,10 @@ export interface components {
              * @enum {string}
              */
             type: "start";
-            /** @description 대화 방식. 지금은 `chat`만 받는다. 다른 값에는 `error`(`unsupported_mode`)가 온다 */
+            /**
+             * @description 바라는 대화 방식. `voice`를 요청했는데 서버가 음성을 쓸 수 없으면 `error`(`voice_unavailable`) 뒤에 `chat`으로 연다.
+             *     실제로 열린 방식은 `ready.mode`다
+             */
             mode: components["schemas"]["ConversationMode"];
         };
         /** @description 사용자가 쓴 글 하나 */
@@ -997,6 +1000,51 @@ export interface components {
              * @enum {string}
              */
             type: "end";
+        };
+        /**
+         * @description 대화 방식을 바꾼다. 서버는 `mode`로 실제 방식을 답한다. `voice`로 바꿀 수 없으면 `error`(`voice_unavailable`) 뒤에 `mode`(`chat`)가 온다.
+         *     같은 대화가 그대로 이어진다
+         */
+        WsSetMode: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "set_mode";
+            mode: components["schemas"]["ConversationMode"];
+        };
+        /**
+         * @description AI의 말을 끊는다(끼어들기). 서버는 내려보내던 소리를 멈추고 `audio_end`(`interrupted`)를 보낸다.
+         *     재생 중인 말이 없으면 아무 일도 없다
+         */
+        WsInterrupt: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "interrupt";
+        };
+        /** @description 지금까지 알아들은 말을 끝점을 기다리지 않고 바로 확정한다("다 말했어요"). 음성 방식에서만 뜻이 있다 */
+        WsFinalize: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "finalize";
+        };
+        /**
+         * @description 한 마디만 듣게 한다. `active`가 참이면 서버는 다음 끝점까지 소리를 받고, 끝점이 오면 스스로 듣기를 멈춘다(한 번에 한 마디).
+         *     거짓이면 지금 바로 멈춘다. 멈춘 동안 올라온 소리는 버린다. 서버는 `listening`으로 지금 듣고 있는지 답한다.
+         *     이 메시지를 한 번이라도 보내면 그 연결은 끝점마다 듣기를 멈추는 방식이 된다. 보내지 않으면 음성 방식인 동안 계속 듣는다.
+         *     음성 방식이 아니면 `error`(`invalid_message`)다
+         */
+        WsListen: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "listen";
+            active: boolean;
         };
         /**
          * @description 누가 한 말인지
@@ -1030,6 +1078,10 @@ export interface components {
              * @enum {string}
              */
             type: "ready";
+            /** @description 실제로 열린 대화 방식. `voice`면 소리를 올려 보낼 수 있고 답이 소리로도 온다 */
+            mode: components["schemas"]["ConversationMode"];
+            /** @description 이 서버가 음성 방식을 쓸 수 있는지. 거짓이면 `set_mode`로 `voice`를 요청해도 열리지 않는다 */
+            voice_available: boolean;
             /** Format: uuid */
             conversation_id: string;
             record_date: components["schemas"]["RecordDate"];
@@ -1109,6 +1161,69 @@ export interface components {
             type: "diary_ready";
             record_date: components["schemas"]["RecordDate"];
         };
+        /** @description 실제 대화 방식이 바뀌었다. `set_mode`의 답이거나, 음성을 더 이어갈 수 없어 서버가 `chat`으로 내린 것이다 */
+        WsMode: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "mode";
+            mode: components["schemas"]["ConversationMode"];
+        };
+        /**
+         * @description 음성 방식에서 알아들은 사용자의 말. `final`이 거짓이면 지금 말하고 있는 한 마디의 중간 결과(누적)라 자막에만 쓴다.
+         *     참이면 끝점까지의 한 마디이고, 그 글로 턴이 돈다. 뒤이어 같은 `client_message_id`의 `thinking`이 온다
+         */
+        WsTranscript: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "transcript";
+            text: string;
+            final: boolean;
+            /**
+             * Format: uuid
+             * @description `final`이 참일 때 그 말에 붙은 식별자. 서버가 만든다
+             */
+            client_message_id?: string;
+        };
+        /** @description 이 뒤의 바이너리 프레임은 `seq`의 말을 읽은 소리다 */
+        WsAudioStart: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "audio_start";
+            /** @description 어느 `ai_text`의 소리인지 */
+            seq: number;
+            /** @description 소리의 샘플레이트(Hz). PCM s16le 모노다 */
+            sample_rate: number;
+        };
+        /** @description 서버가 지금 사용자의 말을 듣고 있는지. `listen`의 답이거나, 한 마디가 끝나 스스로 멈췄다는 알림이다 */
+        WsListening: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "listening";
+            active: boolean;
+        };
+        /**
+         * @description `done` 끝까지 보냈다. `interrupted` 사용자가 끼어들어 멈췄다. `failed` 소리를 만들지 못했다. 글은 이미 `ai_text`로 갔다.
+         * @enum {string}
+         */
+        WsAudioEndReason: "done" | "interrupted" | "failed";
+        /** @description `seq`의 소리가 끝났다. 이 뒤로 그 말의 바이너리 프레임은 오지 않는다 */
+        WsAudioEnd: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "audio_end";
+            seq: number;
+            reason: components["schemas"]["WsAudioEndReason"];
+        };
         /**
          * @description `invalid_message` JSON이 아니거나, 모르는 `type`이거나, 모양이 틀렸다.
          *     `message_too_large` 메시지가 너무 크다.
@@ -1118,9 +1233,10 @@ export interface components {
          *     `unsupported_mode` 지금은 받지 않는 대화 방식이다.
          *     `conversation_ended` 이미 끝난 대화다. 새로 연결해 `start`를 보낸다.
          *     `internal_error` 서버 쪽 문제다. 글은 저장되지 않았을 수 있다. 같은 `client_message_id`로 다시 보내도 된다.
+         *     `voice_unavailable` 음성 방식을 열 수 없다(서버에 음성이 없거나, 인식이 죽어 이어갈 수 없다). 대화는 `chat`으로 이어진다.
          * @enum {string}
          */
-        WsErrorCode: "invalid_message" | "message_too_large" | "rate_limited" | "not_started" | "already_started" | "unsupported_mode" | "conversation_ended" | "internal_error";
+        WsErrorCode: "invalid_message" | "message_too_large" | "rate_limited" | "not_started" | "already_started" | "unsupported_mode" | "conversation_ended" | "internal_error" | "voice_unavailable";
         /** @description 요청을 처리하지 못했다. 사용자가 쓴 글은 담지 않는다 */
         WsError: {
             /**

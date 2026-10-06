@@ -3,6 +3,7 @@ import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'rea
 
 import { Button } from '@/components/ui/button';
 import { TALK_TEXT } from '@/content/talkText';
+import { cn } from '@/lib/utils';
 import { textLength, USER_TEXT_MAX_LENGTH } from '@/talk/messages';
 
 interface ComposerProps {
@@ -10,6 +11,7 @@ interface ComposerProps {
   canSend: boolean;
   /** 보냈으면 true를 돌려준다. 그때만 입력란을 비운다. */
   onSend: (text: string) => boolean;
+  className?: string;
 }
 
 // 한글, 일본어처럼 글자를 조합해서 넣는 입력기는 조합을 끝내는 Enter에도 keydown을 낸다.
@@ -18,8 +20,11 @@ function isComposing(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
   return event.nativeEvent.isComposing || event.keyCode === 229;
 }
 
-/** 글을 쓰는 자리. Enter로 보내고 Shift+Enter로 줄을 바꾼다. */
-export function Composer({ canSend, onSend }: ComposerProps) {
+/**
+ * 글을 쓰는 자리. Enter로 보내고 Shift+Enter로 줄을 바꾼다.
+ * 대화 화면의 맨 아래 줄에서 다른 버튼들 사이에 놓이므로 테두리나 여백을 스스로 두르지 않는다.
+ */
+export function Composer({ canSend, onSend, className }: ComposerProps) {
   const [text, setText] = useState('');
   const inputId = useId();
   const hintId = useId();
@@ -49,12 +54,9 @@ export function Composer({ canSend, onSend }: ComposerProps) {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col gap-1 border-t bg-background pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-    >
+    <form onSubmit={handleSubmit} className={cn('flex min-w-0 flex-col gap-1', className)}>
       {tooLong && (
-        <p id={errorId} role="alert" className="text-sm text-destructive">
+        <p id={errorId} role="alert" className="px-2 text-sm text-destructive">
           {TALK_TEXT.tooLong}
         </p>
       )}
@@ -74,14 +76,20 @@ export function Composer({ canSend, onSend }: ComposerProps) {
           aria-invalid={tooLong}
           aria-describedby={tooLong ? `${errorId} ${hintId}` : hintId}
           // 글자 크기를 16px 아래로 내리지 않는다. 더 작으면 iOS가 입력란에 초점이 갈 때 화면을 확대한다.
-          className="field-sizing-content max-h-40 min-h-12 w-full min-w-0 flex-1 resize-none rounded-2xl border border-input bg-card px-4 py-3 text-base leading-normal text-foreground placeholder:text-muted-foreground aria-invalid:border-destructive"
+          className="field-sizing-content max-h-40 min-h-12 w-full min-w-0 flex-1 resize-none rounded-3xl border border-input bg-card px-5 py-3 text-base leading-normal text-foreground placeholder:text-muted-foreground aria-invalid:border-destructive"
         />
-        <Button type="submit" size="icon" disabled={!sendable} aria-label={TALK_TEXT.send}>
+        <Button
+          type="submit"
+          size="icon"
+          disabled={!sendable}
+          aria-label={TALK_TEXT.send}
+          className="rounded-full"
+        >
           <SendHorizontalIcon aria-hidden="true" />
         </Button>
       </div>
-      {/* 화면 키보드에는 Shift가 없다. 키보드가 달린 기기(태블릿, 데스크톱)의 너비에서만 보여 준다. */}
-      <p id={hintId} className="hidden text-xs text-muted-foreground md:block">
+      {/* 화면 키보드에는 Shift가 없다. 키보드가 달린 기기(태블릿, 데스크톱)에서만 읽히도록 두되, 자리는 차지하지 않는다. */}
+      <p id={hintId} className="sr-only">
         {TALK_TEXT.inputHint}
       </p>
     </form>

@@ -1,17 +1,26 @@
 import { vi } from 'vitest';
 
-import type { Resource, WsServerMessage, WsUtterance } from '@/api/types';
+import type {
+  ConversationMode,
+  Resource,
+  WsAudioEndReason,
+  WsServerMessage,
+  WsUtterance,
+} from '@/api/types';
 import type { SocketLike } from '@/talk/conversationClient';
 
 /** 테스트가 서버 노릇을 할 수 있는 소켓 대역. 보낸 프레임을 모아 두고, 서버의 메시지와 끊김을 흉내 낸다. */
 export class FakeSocket implements SocketLike {
+  binaryType: BinaryType = 'blob';
   onopen: SocketLike['onopen'] = null;
   onmessage: SocketLike['onmessage'] = null;
   onclose: SocketLike['onclose'] = null;
   onerror: SocketLike['onerror'] = null;
 
-  /** 클라이언트가 보낸 프레임을 JSON으로 읽은 것 */
+  /** 클라이언트가 보낸 텍스트 프레임을 JSON으로 읽은 것 */
   readonly sent: Array<Record<string, unknown>> = [];
+  /** 클라이언트가 보낸 바이너리 프레임(소리) */
+  readonly sentBinary: ArrayBuffer[] = [];
   readonly url: string;
   closedByClient = false;
 
@@ -19,8 +28,9 @@ export class FakeSocket implements SocketLike {
     this.url = url;
   }
 
-  send(data: string): void {
-    this.sent.push(JSON.parse(data) as Record<string, unknown>);
+  send(data: string | ArrayBuffer): void {
+    if (typeof data === 'string') this.sent.push(JSON.parse(data) as Record<string, unknown>);
+    else this.sentBinary.push(data);
   }
 
   close(): void {
@@ -40,6 +50,13 @@ export class FakeSocket implements SocketLike {
 
   receiveRaw(data: unknown): void {
     this.onmessage?.(new MessageEvent('message', { data }));
+  }
+
+  /** 서버가 소리 조각을 내려보냈다. */
+  receiveBinary(bytes: number | ArrayBuffer): ArrayBuffer {
+    const buffer = typeof bytes === 'number' ? new ArrayBuffer(bytes) : bytes;
+    this.receiveRaw(buffer);
+    return buffer;
   }
 
   /**
@@ -107,8 +124,17 @@ export function ready(
     resumed: false,
     utterances: [],
     resources_pinned: false,
+    mode: 'chat',
+    voice_available: false,
     ...overrides,
   };
+}
+
+/** 음성을 쓸 수 있는 서버의 ready */
+export function voiceReady(
+  overrides: Partial<Extract<WsServerMessage, { type: 'ready' }>> = {},
+): WsServerMessage {
+  return ready({ voice_available: true, ...overrides });
 }
 
 export function utterance(
@@ -138,6 +164,38 @@ export const thinking = (clientMessageId: string, seq: number): WsServerMessage 
   type: 'thinking',
   client_message_id: clientMessageId,
   seq,
+});
+
+export const modeChanged = (mode: ConversationMode): WsServerMessage => ({ type: 'mode', mode });
+
+/** 서버가 지금 듣고 있는지. 한 마디가 끝나면 거짓으로 온다. */
+export const listening = (active: boolean): WsServerMessage => ({ type: 'listening', active });
+
+/** 지금 말하고 있는 한 마디의 중간 결과 */
+export const partialTranscript = (text: string): WsServerMessage => ({
+  type: 'transcript',
+  text,
+  final: false,
+});
+
+/** 끝점까지의 한 마디. 이 글로 턴이 돈다. */
+export const finalTranscript = (text: string, clientMessageId: string): WsServerMessage => ({
+  type: 'transcript',
+  text,
+  final: true,
+  client_message_id: clientMessageId,
+});
+
+export const audioStart = (seq: number, sampleRate = 24_000): WsServerMessage => ({
+  type: 'audio_start',
+  seq,
+  sample_rate: sampleRate,
+});
+
+export const audioEnd = (seq: number, reason: WsAudioEndReason = 'done'): WsServerMessage => ({
+  type: 'audio_end',
+  seq,
+  reason,
 });
 
 export const testResources: Resource[] = [

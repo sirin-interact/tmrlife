@@ -30,6 +30,12 @@
   --dawn-from: #fbe3d2;
   --dawn-to: #faf6f0;
 
+  /* 대화 화면 가운데의 구슬. 숨 쉬듯 움직이는 장식이라 글자 바탕으로는 쓰지 않는다. */
+  --orb-light: #ffe9d8;
+  --orb-mid: #f0a57e;
+  --orb-deep: #b4532d;
+  --orb-glow: #f6c9a8;
+
   --radius: 0.875rem;
   /* 폰과 태블릿에서 손가락으로 누르기 편한 최소 크기 */
   --touch-target: 3rem;
@@ -64,5 +70,10 @@
 
     --dawn-from: #43291c;
     --dawn-to: #1b1815;
+
+    --orb-light: #ffd7bd;
+    --orb-mid: #e28a5c;
+    --orb-deep: #7a3418;
+    --orb-glow: #f0a57e;
   }
 }

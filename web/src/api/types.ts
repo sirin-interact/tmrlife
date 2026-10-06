@@ -67,3 +67,5 @@ export type WsSpeaker = Schemas['WsSpeaker'];
 export type WsOrigin = Schemas['WsOrigin'];
 export type WsEndReason = Schemas['WsEndReason'];
 export type WsErrorCode = Schemas['WsErrorCode'];
+export type WsAudioEndReason = Schemas['WsAudioEndReason'];
+export type ConversationMode = Schemas['ConversationMode'];

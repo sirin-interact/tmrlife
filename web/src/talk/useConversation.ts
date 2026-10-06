@@ -1,18 +1,33 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 
+import type { ConversationMode } from '@/api/types';
 import { meQueryKey } from '@/auth/queryKeys';
 import { ConversationClient } from '@/talk/conversationClient';
 import type { ConversationState } from '@/talk/conversationState';
 import { conversationUrl } from '@/talk/messages';
+import { readPreferredMode } from '@/talk/modePreference';
 
 export interface Conversation {
   state: ConversationState;
+  /** 화면을 열 때 사용자가 마지막으로 골랐던 방식. 음성이면 구슬을 눌러 시작하게 권한다. */
+  preferredMode: ConversationMode;
   send: (text: string) => boolean;
   retry: (clientMessageId: string) => void;
   end: () => void;
   reconnect: () => void;
   dismissNotice: () => void;
+  /** 사용자 동작 처리기 안에서 바로 불러야 한다. 그래야 iOS가 오디오를 열어 준다. */
+  startVoice: () => void;
+  stopVoice: () => void;
+  /** 내일의 말을 끊는다. */
+  interrupt: () => void;
+  /** 구슬을 눌러 다음 한 마디를 듣게 한다 */
+  listen: () => void;
+  /** "다 말했어요" */
+  finalize: () => void;
+  /** 소리 크기(0~1). 초당 수십 번 오므로 상태가 아니라 CSS 변수로 바로 넣는다. */
+  subscribeLevel: (listener: (level: number) => void) => () => void;
 }
 
 /**
@@ -30,6 +45,7 @@ export function useConversation(): Conversation {
         onHandshakeFailed: () => void queryClient.invalidateQueries({ queryKey: meQueryKey }),
       }),
   );
+  const [preferredMode] = useState(readPreferredMode);
   const state = useSyncExternalStore(client.subscribe, client.getState);
 
   useEffect(() => {
@@ -55,10 +71,17 @@ export function useConversation(): Conversation {
 
   return {
     state,
+    preferredMode,
     send: (text) => client.send(text),
     retry: (clientMessageId) => client.retry(clientMessageId),
     end: () => client.end(),
     reconnect: () => client.wake(),
     dismissNotice: () => client.dismissNotice(),
+    startVoice: () => void client.startVoice(),
+    stopVoice: () => client.stopVoice(),
+    interrupt: () => client.interrupt(),
+    listen: () => client.listen(),
+    finalize: () => client.finalize(),
+    subscribeLevel: client.subscribeLevel,
   };
 }

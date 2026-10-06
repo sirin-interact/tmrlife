@@ -1,15 +1,28 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  fakeStream,
+  installFakeWebAudio,
+  notAllowedError,
+  type FakeWebAudio,
+} from '@/test/fakeAudio';
+import {
   aiText,
+  audioEnd,
+  audioStart,
+  finalTranscript,
+  listening,
   installFakeWebSocket,
+  modeChanged,
+  partialTranscript,
   ready,
   RECORD_DATE,
   testResources,
   thinking,
   utterance,
+  voiceReady,
   type FakeSocket,
   type FakeSockets,
 } from '@/test/fakeSocket';
@@ -21,6 +34,8 @@ const GREETING = '오늘 하루는 어떠셨어요?';
 
 afterEach(() => {
   vi.useRealTimers();
+  // 마지막으로 고른 대화 방식이 다음 테스트로 넘어가지 않게 한다.
+  localStorage.clear();
 });
 
 async function connected(sockets: FakeSockets): Promise<FakeSocket> {
@@ -44,7 +59,16 @@ async function openTalk(routes: Parameters<typeof mockApi>[0] = {}) {
 }
 
 const input = () => screen.getByLabelText('하고 싶은 이야기');
+/** 화면 가운데의 자막. 지금 주고받는 한 마디만 있다. */
+const caption = () => screen.getByRole('region', { name: '지금 나누는 말' });
+/** 지난 말까지 모두 있는 목록. "대화 내용"을 열어야 보인다. */
 const log = () => screen.getByRole('list', { name: '대화 내용' });
+const transcriptToggle = () => screen.getByRole('button', { name: '대화 내용' });
+const orb = () => document.querySelector('.orb');
+
+async function showTranscript() {
+  await userEvent.click(transcriptToggle());
+}
 
 function lastUserText(socket: FakeSocket) {
   const frame = socket.sentOfType('user_text').at(-1);
@@ -71,7 +95,7 @@ describe('대화 화면: 연결', () => {
   it('첫 안부를 보여 주고 기록 날짜를 적는다. 방금 도착한 말은 화면 낭독기에도 읽어 준다', async () => {
     await openTalk();
 
-    expect(within(log()).getByText(GREETING)).toBeInTheDocument();
+    expect(within(caption()).getByText(GREETING)).toBeInTheDocument();
     expect(screen.getByText('9월 20일 일요일')).toHaveAttribute('datetime', RECORD_DATE);
     const live = document.querySelector('[aria-live="polite"]');
     expect(live).toHaveTextContent(`내일: ${GREETING}`);
@@ -102,13 +126,69 @@ describe('대화 화면: 연결', () => {
       );
     });
 
-    const items = await within(log()).findAllByRole('listitem');
+    // 자막에는 마지막 한 마디(사용자의 말과 그 답)만 있다. 첫 안부는 지난 말이라 자막에 없다.
+    await within(caption()).findByText('오 재밌게 놀고 오셨어요?');
+    expect(within(caption()).getByText('오늘 친구랑 놀러갔다왔어')).toBeInTheDocument();
+    expect(within(caption()).queryByText(GREETING)).not.toBeInTheDocument();
+    expect(document.querySelector('[aria-live="polite"]')).toBeEmptyDOMElement();
+
+    await showTranscript();
+    const items = within(log()).getAllByRole('listitem');
     expect(items.map((item) => item.textContent)).toEqual([
       `내일: ${GREETING}`,
       '나: 오늘 친구랑 놀러갔다왔어',
       '내일: 오 재밌게 놀고 오셨어요?',
     ]);
-    expect(document.querySelector('[aria-live="polite"]')).toBeEmptyDOMElement();
+  });
+
+  it('지난 말까지 보려면 "대화 내용"을 열고, 다시 누르면 자막으로 돌아온다', async () => {
+    await openTalk();
+
+    expect(transcriptToggle()).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByRole('list', { name: '대화 내용' })).not.toBeInTheDocument();
+
+    await showTranscript();
+
+    expect(transcriptToggle()).toHaveAttribute('aria-pressed', 'true');
+    expect(within(log()).getByText(GREETING)).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '지금 나누는 말' })).not.toBeInTheDocument();
+    // 열어 둔 채로도 글은 쓴다.
+    expect(input()).toBeInTheDocument();
+
+    await showTranscript();
+
+    expect(within(caption()).getByText(GREETING)).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: '대화 내용' })).not.toBeInTheDocument();
+  });
+
+  it('구슬은 기다릴 때 숨 쉬고, 답을 준비할 때와 건넬 때 모양이 바뀌고, 다 건네면 돌아온다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { socket } = await openTalk();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    // 첫 안부를 건네는 동안은 말하는 모양이다. 다 건네면 숨 쉬는 모양으로 돌아온다.
+    expect(orb()).toHaveAttribute('data-mode', 'speaking');
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(orb()).toHaveAttribute('data-mode', 'idle');
+
+    await user.type(input(), '오늘은 좀 피곤했어{Enter}');
+    expect(orb()).toHaveAttribute('data-mode', 'thinking');
+
+    act(() => {
+      socket.receive(thinking(lastUserText(socket).client_message_id, 1));
+      socket.receive(aiText(2, '오늘 많이 지치셨나 봐요.'));
+    });
+    expect(orb()).toHaveAttribute('data-mode', 'speaking');
+
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(orb()).toHaveAttribute('data-mode', 'idle');
+  });
+
+  it('연결이 이어지지 않으면 구슬이 빛을 거둔다', async () => {
+    const { socket } = await openTalk();
+
+    act(() => socket.drop(CLOSE_CODE.takenOver));
+
+    expect(orb()).toHaveAttribute('data-mode', 'off');
   });
 
   it('연결이 끊기면 알리고, 지난 대화는 그대로 두고, 보내기를 막는다', async () => {
@@ -118,7 +198,7 @@ describe('대화 화면: 연결', () => {
     act(() => socket.drop());
 
     expect(screen.getByRole('status')).toHaveTextContent('연결이 잠시 끊겼어요. 다시 잇고 있어요.');
-    expect(within(log()).getByText(GREETING)).toBeInTheDocument();
+    expect(within(caption()).getByText(GREETING)).toBeInTheDocument();
     expect(input()).toHaveValue('쓰던 글');
     expect(screen.getByRole('button', { name: '보내기' })).toBeDisabled();
   });
@@ -153,11 +233,13 @@ describe('대화 화면: 연결', () => {
     expect(router.state.location.state).toEqual({ from: '/talk' });
   });
 
-  it('대화 화면에서는 메뉴 줄을 접지만 "도움이 필요할 때"는 그대로 있다', async () => {
+  it('대화 화면에서는 머리말과 메뉴 줄을 접지만 "도움이 필요할 때"와 처음으로 가는 길은 그대로 있다', async () => {
     await openTalk();
 
     expect(screen.queryByRole('navigation', { name: '주요 메뉴' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '내일 처음 화면' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '도움이 필요할 때' })).toHaveAttribute('href', '/help');
+    expect(screen.getByRole('link', { name: '처음 화면으로' })).toHaveAttribute('href', '/');
   });
 });
 
@@ -175,18 +257,22 @@ describe('대화 화면: 글 쓰기', () => {
     );
     expect(input()).toHaveValue('');
     expect(input()).toHaveFocus();
-    expect(within(log()).getByText('오늘 친구랑 놀러갔다왔어')).toBeInTheDocument();
-    expect(within(log()).getByRole('status')).toHaveTextContent('내일이 답을 준비하고 있어요');
+    // 보낸 말이 자막에 오르고, 앞의 안부는 자막에서 물러난다.
+    expect(within(caption()).getByText('오늘 친구랑 놀러갔다왔어')).toBeInTheDocument();
+    expect(within(caption()).queryByText(GREETING)).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('내일이 답을 준비하고 있어요');
 
     act(() => {
       socket.receive(thinking(sent.client_message_id, 1));
       socket.receive(aiText(2, '오 재밌게 놀고 오셨어요? 어디서 놀았어요?'));
     });
 
-    expect(within(log()).queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
     expect(
-      within(log()).getByText('오 재밌게 놀고 오셨어요? 어디서 놀았어요?'),
+      within(caption()).getByText('오 재밌게 놀고 오셨어요? 어디서 놀았어요?'),
     ).toBeInTheDocument();
+    // 답과 함께 방금 한 말도 남아 있어서, 무엇에 대한 답인지 보인다.
+    expect(within(caption()).getByText('오늘 친구랑 놀러갔다왔어')).toBeInTheDocument();
   });
 
   it('Shift+Enter는 보내지 않고 줄을 바꾼다', async () => {
@@ -267,12 +353,12 @@ describe('대화 화면: 글 쓰기', () => {
       }),
     );
 
-    expect(within(log()).getByText('보내지 못했어요.')).toBeInTheDocument();
-    await user.click(within(log()).getByRole('button', { name: '다시 보내기' }));
+    expect(within(caption()).getByText('보내지 못했어요.')).toBeInTheDocument();
+    await user.click(within(caption()).getByRole('button', { name: '다시 보내기' }));
 
     expect(socket.sentOfType('user_text')).toHaveLength(2);
     expect(lastUserText(socket)).toEqual(first);
-    expect(within(log()).queryByText('보내지 못했어요.')).not.toBeInTheDocument();
+    expect(within(caption()).queryByText('보내지 못했어요.')).not.toBeInTheDocument();
   });
 
   it('오류 메시지가 와도 사용자가 쓴 글이나 서버의 코드를 그대로 화면에 옮기지 않는다', async () => {
@@ -487,5 +573,300 @@ describe('대화 화면: 끝내기', () => {
 
     await waitFor(() => expect(sockets.all).toHaveLength(2));
     expect(screen.getByLabelText('하고 싶은 이야기')).toBeInTheDocument();
+  });
+});
+
+describe('대화 화면: 음성', () => {
+  const HINT = '구슬을 누르면 이야기를 시작해요';
+
+  // 첫 안부를 글로 건네는 동안(몇 초) 구슬이 말하는 모양이라, 그 시간을 건너뛰고 본다.
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+  /** 음성을 쓸 수 있는 서버에 연결해 첫 안부까지 받은 상태 */
+  async function openVoiceTalk() {
+    mockApi({ 'GET /api/v1/me': signedIn });
+    const sockets = installFakeWebSocket();
+    renderRoute('/talk');
+    const socket = await connected(sockets);
+    act(() => {
+      socket.open();
+      socket.receive(voiceReady());
+      socket.receive(aiText(0, GREETING));
+    });
+    await screen.findByText(GREETING);
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    return { sockets, socket };
+  }
+
+  /** 구슬을 눌러 음성을 켜고 서버가 음성으로 바꿔 준 상태 */
+  async function startListening(audio: FakeWebAudio) {
+    const opened = await openVoiceTalk();
+    await user().click(screen.getByRole('button', { name: '이야기 시작하기' }));
+    await waitFor(() =>
+      expect(opened.socket.sentOfType('set_mode')).toEqual([{ type: 'set_mode', mode: 'voice' }]),
+    );
+    act(() => {
+      opened.socket.receive(modeChanged('voice'));
+      opened.socket.receive(listening(true));
+    });
+    await screen.findByText('듣고 있어요');
+    return { ...opened, audio };
+  }
+
+  it('한 마디가 끝나면 듣기를 멈추고, 구슬을 누르면 다음 말을 듣는다', async () => {
+    const audio = installFakeWebAudio();
+    const { socket } = await startListening(audio);
+
+    act(() => {
+      socket.receive(finalTranscript('오늘은 좀 피곤했어', '11111111-1111-4111-8111-111111111111'));
+      socket.receive(listening(false));
+      socket.receive(thinking('11111111-1111-4111-8111-111111111111', 1));
+      socket.receive(aiText(2, '오늘 많이 지치셨나 봐요.'));
+    });
+
+    expect(screen.queryByText('듣고 있어요')).not.toBeInTheDocument();
+    expect(screen.getByText('구슬을 누르면 말할 수 있어요')).toBeInTheDocument();
+    expect(orb()).not.toHaveAttribute('data-mode', 'listening');
+    const again = screen.getByRole('button', { name: '눌러서 말하기' });
+    expect(again).toBe(orb());
+
+    await user().click(again);
+    expect(socket.sentOfType('listen').at(-1)).toEqual({ type: 'listen', active: true });
+    act(() => socket.receive(listening(true)));
+    expect(screen.getByText('듣고 있어요')).toBeInTheDocument();
+    // 방금 온 답을 읽는 모양이 잠깐 이어질 수 있어 구슬의 모양 대신 구슬이 하는 일을 본다.
+    expect(screen.getByRole('button', { name: '다 말했어요' })).toBe(orb());
+  });
+
+  it('음성을 쓸 수 있으면 구슬을 눌러 시작하게 권하고, 누르면 마이크를 켜고 듣는 모양이 된다', async () => {
+    const audio = installFakeWebAudio();
+    const { socket } = await openVoiceTalk();
+
+    expect(screen.getByText(HINT)).toBeInTheDocument();
+    // 글로도 이야기할 수 있다.
+    expect(input()).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '음성으로 이야기하기' })).toBeInTheDocument();
+
+    await user().click(screen.getByRole('button', { name: '이야기 시작하기' }));
+
+    expect(screen.getByText('마이크를 켜는 중이에요')).toBeInTheDocument();
+    expect(screen.queryByText(HINT)).not.toBeInTheDocument();
+    expect(audio.getUserMedia).toHaveBeenCalledWith({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+      },
+    });
+    await waitFor(() =>
+      expect(socket.sentOfType('set_mode')).toEqual([{ type: 'set_mode', mode: 'voice' }]),
+    );
+
+    act(() => {
+      socket.receive(modeChanged('voice'));
+      socket.receive(listening(true));
+    });
+
+    expect(screen.getByText('듣고 있어요')).toBeInTheDocument();
+    expect(orb()).toHaveAttribute('data-mode', 'listening');
+    expect(screen.getByRole('button', { name: '다 말했어요' })).toBe(orb());
+    expect(screen.queryByLabelText('하고 싶은 이야기')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '글로 쓰기' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(screen.getByRole('button', { name: '음성 끄기' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '끝내기' })).toBeInTheDocument();
+
+    // 마이크 소리 크기는 상태가 아니라 구슬의 CSS 변수로 들어가고, 조각은 바이너리로 올라간다.
+    const port = audio.latestNode('naeil-capture').port;
+    act(() => port.emit({ type: 'level', value: 0.5 }));
+    expect((orb() as HTMLElement).style.getPropertyValue('--orb-level')).toBe('0.500');
+    act(() => port.emit({ type: 'frame', buffer: new ArrayBuffer(3200) }));
+    expect(socket.sentBinary).toHaveLength(1);
+  });
+
+  it('듣는 동안 구슬을 누르면 "다 말했어요"로 말을 끝맺는다', async () => {
+    const { socket } = await startListening(installFakeWebAudio());
+
+    await user().click(screen.getByRole('button', { name: '다 말했어요' }));
+
+    expect(socket.sentOfType('finalize')).toEqual([{ type: 'finalize' }]);
+  });
+
+  it('말하는 동안 알아듣는 말이 자막에 보이고, 끝점이 오면 그 말이 자막에 올라 답을 기다린다', async () => {
+    const { socket } = await startListening(installFakeWebAudio());
+
+    act(() => socket.receive(partialTranscript('오늘은 좀')));
+
+    expect(within(caption()).getByText('오늘은 좀')).toBeInTheDocument();
+    expect(within(caption()).getByText(GREETING)).toBeInTheDocument();
+    expect(orb()).toHaveAttribute('data-mode', 'listening');
+
+    act(() => {
+      socket.receive(finalTranscript('오늘은 좀 피곤했어', 'u1'));
+      socket.receive(thinking('u1', 1));
+    });
+
+    expect(within(caption()).getByText('오늘은 좀 피곤했어')).toBeInTheDocument();
+    expect(within(caption()).queryByText('오늘은 좀')).not.toBeInTheDocument();
+    expect(within(caption()).queryByText(GREETING)).not.toBeInTheDocument();
+    expect(orb()).toHaveAttribute('data-mode', 'thinking');
+    expect(screen.getByRole('status')).toHaveTextContent('내일이 답을 준비하고 있어요');
+    // 답을 기다리는 동안 구슬은 누를 일이 없다.
+    expect(screen.queryByRole('button', { name: '다 말했어요' })).not.toBeInTheDocument();
+
+    // 알아들은 말은 대화 내용에도 보낸 글로 남는다.
+    await showTranscript();
+    expect(within(log()).getByText('오늘은 좀 피곤했어')).toBeInTheDocument();
+  });
+
+  it('내일이 말하는 동안 구슬은 말하는 모양이고, 누르면 끊는다', async () => {
+    const audio = installFakeWebAudio();
+    const { socket } = await startListening(audio);
+
+    await act(async () => {
+      socket.receive(aiText(2, '많이 지치셨나 봐요.'));
+      socket.receive(audioStart(2));
+      socket.receiveBinary(4_800);
+      // 재생기는 워클릿을 실은 뒤에야 노드를 만든다. 그 기다림을 흘려보낸다.
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(orb()).toHaveAttribute('data-mode', 'speaking');
+    const port = audio.latestNode('naeil-player').port;
+    expect(port.postedOfType('push')).toHaveLength(1);
+    act(() => port.emit({ type: 'level', value: 0.25 }));
+    expect((orb() as HTMLElement).style.getPropertyValue('--orb-level')).toBe('0.250');
+
+    await user().click(screen.getByRole('button', { name: '잠깐 멈추기' }));
+
+    expect(socket.sentOfType('interrupt')).toEqual([{ type: 'interrupt' }]);
+    expect(port.postedOfType('clear')).toHaveLength(1);
+    expect(orb()).toHaveAttribute('data-mode', 'listening');
+  });
+
+  it('소리를 끝까지 받았어도 다 들려준 뒤에야 듣는 모양으로 돌아온다', async () => {
+    const audio = installFakeWebAudio();
+    const { socket } = await startListening(audio);
+    await act(async () => {
+      socket.receive(aiText(2, '그랬군요.'));
+      socket.receive(audioStart(2));
+      socket.receiveBinary(4_800);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    const port = audio.latestNode('naeil-player').port;
+
+    act(() => socket.receive(audioEnd(2, 'done')));
+    expect(orb()).toHaveAttribute('data-mode', 'speaking');
+
+    act(() => port.emit({ type: 'drained' }));
+    expect(orb()).toHaveAttribute('data-mode', 'listening');
+  });
+
+  it('글로 쓰기를 누르면 음성은 그대로 둔 채 글 쓰는 자리가 열린다', async () => {
+    const { socket } = await startListening(installFakeWebAudio());
+    const typing = user();
+
+    await typing.click(screen.getByRole('button', { name: '글로 쓰기' }));
+
+    expect(screen.getByRole('button', { name: '글로 쓰기' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByText('듣고 있어요')).toBeInTheDocument();
+    await typing.type(input(), '글로도 써 볼게{Enter}');
+    expect(lastUserText(socket).text).toBe('글로도 써 볼게');
+    expect(socket.sentOfType('set_mode')).toHaveLength(1);
+  });
+
+  it('음성 끄기를 누르면 마이크를 놓고 글로 돌아오며, 마이크 버튼으로 다시 켤 수 있다', async () => {
+    const stream = fakeStream();
+    const audio = installFakeWebAudio({ getUserMedia: () => Promise.resolve(stream) });
+    const { socket } = await startListening(audio);
+
+    await user().click(screen.getByRole('button', { name: '음성 끄기' }));
+
+    expect(socket.sentOfType('set_mode').at(-1)).toEqual({ type: 'set_mode', mode: 'chat' });
+    expect(stream.tracks[0]?.stopped).toBe(true);
+    expect(input()).toBeInTheDocument();
+    expect(screen.queryByText('듣고 있어요')).not.toBeInTheDocument();
+    expect(screen.queryByText(HINT)).not.toBeInTheDocument();
+    act(() => socket.receive(modeChanged('chat')));
+    expect(orb()).toHaveAttribute('data-mode', 'idle');
+    expect(localStorage.getItem('naeil.talk.mode')).toBe('chat');
+
+    await user().click(screen.getByRole('button', { name: '음성으로 이야기하기' }));
+
+    await waitFor(() =>
+      expect(socket.sentOfType('set_mode').at(-1)).toEqual({ type: 'set_mode', mode: 'voice' }),
+    );
+    expect(audio.getUserMedia).toHaveBeenCalledTimes(2);
+  });
+
+  it('마이크 권한이 거절되면 안내하고 글로 이야기할 수 있다', async () => {
+    installFakeWebAudio({ getUserMedia: () => Promise.reject(notAllowedError()) });
+    const { socket } = await openVoiceTalk();
+
+    await user().click(screen.getByRole('button', { name: '이야기 시작하기' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        '마이크를 쓸 수 없어요. 브라우저 설정에서 마이크를 허용한 뒤 다시 눌러 주세요. 그동안은 글로 이야기할 수 있어요.',
+      ),
+    );
+    expect(socket.sentOfType('set_mode')).toHaveLength(0);
+    expect(input()).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '음성으로 이야기하기' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '이야기 시작하기' })).not.toBeInTheDocument();
+    expect(orb()).toHaveAttribute('data-mode', 'idle');
+  });
+
+  it('서버가 음성을 쓸 수 없다고 하면 글로 이어간다고 알리고 마이크를 놓는다', async () => {
+    const stream = fakeStream();
+    const { socket } = await startListening(
+      installFakeWebAudio({ getUserMedia: () => Promise.resolve(stream) }),
+    );
+
+    act(() => {
+      socket.receive({ type: 'error', code: 'voice_unavailable' });
+      socket.receive(modeChanged('chat'));
+    });
+
+    expect(screen.getByRole('status')).toHaveTextContent('지금은 음성을 쓸 수 없어 글로 이어가요.');
+    expect(stream.tracks[0]?.stopped).toBe(true);
+    expect(input()).toBeInTheDocument();
+    expect(screen.queryByText('듣고 있어요')).not.toBeInTheDocument();
+  });
+
+  it('기억해 둔 방식이 글이면 권하지 않고 마이크 버튼만 둔다', async () => {
+    localStorage.setItem('naeil.talk.mode', 'chat');
+    await openVoiceTalk();
+
+    expect(screen.queryByText(HINT)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '이야기 시작하기' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '음성으로 이야기하기' })).toBeInTheDocument();
+  });
+
+  it('글로 먼저 이야기하면 권유를 거둔다', async () => {
+    const { socket } = await openVoiceTalk();
+
+    await user().type(input(), '글로 할게{Enter}');
+
+    expect(lastUserText(socket).text).toBe('글로 할게');
+    expect(screen.queryByText(HINT)).not.toBeInTheDocument();
+  });
+
+  it('음성을 쓸 수 없는 서버면 마이크 버튼도 권유도 없다', async () => {
+    await openTalk();
+
+    expect(screen.queryByRole('button', { name: '음성으로 이야기하기' })).not.toBeInTheDocument();
+    expect(screen.queryByText(HINT)).not.toBeInTheDocument();
+    expect(orb()).toHaveAttribute('aria-hidden', 'true');
   });
 });
