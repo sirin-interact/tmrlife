@@ -47,6 +47,8 @@ func (d *Deps) NewConversationEngine(
 		Analysis: signals,
 		Clock:    d.Clock,
 		Logger:   d.Logger,
+		// 흐릿하게 들은 무거운 말에 되묻는 기준이다. 글로 쓴 말에는 쓰이지 않는다.
+		MishearBelow: d.Config.Voice.MishearBelow,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create conversation engine: %w", err)
@@ -126,6 +128,10 @@ func (d *Deps) newConversationChannel(ctx context.Context) (*api.Conversation, e
 	if err != nil {
 		return nil, err
 	}
+	voiceProvider, err := d.NewVoiceProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := d.Config
 	channel, err := api.NewConversation(api.ConversationOptions{
@@ -138,6 +144,8 @@ func (d *Deps) newConversationChannel(ctx context.Context) (*api.Conversation, e
 		MaxMessageBytes: cfg.WebSocket.MaxMessageBytes,
 		MessageRate:     api.RateLimit(cfg.WebSocket.MessageRate),
 		MaxKeys:         cfg.RateLimits.MaxKeys,
+		Voice:           voiceProvider,
+		BargeIn:         cfg.Voice.BargeIn,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create conversation channel: %w", err)

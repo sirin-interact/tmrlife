@@ -213,17 +213,26 @@ func (e *Engine) runTurn(ctx context.Context, s *Session, said storedSaid, seale
 		}
 	}
 
-	out, nextCheckState, err := e.respond(ctx, s, respondInput{
-		stage:      decision.Stage,
-		checkState: checkState,
-		spoken:     spoken,
-		seq:        said.stored.Seq,
-		said:       said.text,
-		turns:      turns,
-		pending:    pending,
-	})
-	if err != nil {
-		return Turn{}, err
+	var out outgoing
+	var nextCheckState string
+	if e.misheard(decision.Stage, said.stored.STTMinConfidence, turns) {
+		// 무거운 말을 흐릿하게 들었다. 넘기지도, 그 말을 들은 것으로 치지도 않고 한 번 더 말해 달라고 한다.
+		// 판정은 위에서 그대로 남겼다. 확인 상태는 옮기지 않는다. 되묻는 말은 되묻기(첫 걸음)가 아니다.
+		pending.cancel()
+		out = fixed(e.phrases.MishearCheck())
+	} else {
+		out, nextCheckState, err = e.respond(ctx, s, respondInput{
+			stage:      decision.Stage,
+			checkState: checkState,
+			spoken:     spoken,
+			seq:        said.stored.Seq,
+			said:       said.text,
+			turns:      turns,
+			pending:    pending,
+		})
+		if err != nil {
+			return Turn{}, err
+		}
 	}
 	if err := e.emitReply(ctx, s, out, nextCheckState); err != nil {
 		return Turn{}, err
@@ -239,6 +248,25 @@ func (e *Engine) runTurn(ctx context.Context, s *Session, said storedSaid, seale
 	e.logger.LogAttrs(ctx, slog.LevelInfo, "conversation turn finished",
 		slog.Any("conversation", s), slog.Any("turn", turn))
 	return turn, nil
+}
+
+// misheard는 음성으로 들은 확인 단계의 말을 되물어야 하는지다.
+//
+// 확인 단계의 말은 되묻거나 직접 묻는 쪽으로 가는데, 흐릿하게 들은 말로 그 길에 들어서면 하지 않은 말에 답하게 된다.
+// 대응 단계 이상은 확신도를 보지 않는다. 가장 무거운 말을 흐릿하게 들었다고 미리 써 둔 말을 미루지 않는다.
+// 바로 앞에서 이미 되물었으면 또 묻지 않는다. 두 번째도 흐릿하면 들은 대로 간다. 되묻기만 되풀이하면 대화가 막힌다.
+func (e *Engine) misheard(stage crisis.Stage, confidence *float32, turns []reply.Turn) bool {
+	if e.mishear <= 0 || confidence == nil || stage != crisis.StageCheck || *confidence >= e.mishear {
+		return false
+	}
+	// turns의 마지막은 방금 저장한 사용자의 말이다. 그 앞의 AI 말을 본다.
+	for i := len(turns) - 2; i >= 0; i-- {
+		if turns[i].Speaker != reply.SpeakerAI {
+			continue
+		}
+		return turns[i].Text != e.phrases.MishearCheck().Display
+	}
+	return true
 }
 
 // claimDirectAsk는 이 대화의 직접 묻기 자리를 차지한다. 차지했으면 참이다.

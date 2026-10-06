@@ -110,6 +110,25 @@ configMapGenerator:
       # 글 하나마다 모델을 두세 번 부르므로 빈도는 비용의 상한이기도 하다. 시도 한도와 같이 파드마다 따로 센다.
       - WS_MAX_MESSAGE_BYTES=16384
       - WS_MESSAGE_RATE_LIMIT=20/1m
+      # 음성 인식과 합성을 어디서 받을지: soniox_elevenlabs | fake | off.
+      # 운영은 실제 공급자를 부른다. Secret의 SONIOX_API_KEY와 ELEVENLABS_API_KEY가 모두 있어야 서버가 뜬다.
+      # off면 음성 방식이 열리지 않고 채팅으로만 대화한다. fake는 대본대로 알아듣는 가짜라 운영에서는 서버가 거부한다.
+      - VOICE_PROVIDER=soniox_elevenlabs
+      # 실시간 인식의 주소와 모델. 키의 리전(미국, 일본, EU)에 맞는 주소여야 한다.
+      - SONIOX_URL=wss://stt-rt.soniox.com/transcribe-websocket
+      - SONIOX_MODEL=stt-rt-v5
+      # 인식기에 주는 언어 힌트(쉼표로 나눈다).
+      - STT_LANGUAGE_HINTS=ko
+      # 말이 멈춘 뒤 끝점을 내기까지 인식기가 기다리는 시간의 상한(500ms~3s). 기운 없는 사람은 말 중간에 자주 멈춘다.
+      - STT_MAX_ENDPOINT_DELAY=3s
+      # 무거운 말(확인 단계) 근처의 인식 확신도가 이 값보다 낮으면 넘기지 않고 되묻는다. 0이면 되묻지 않는다.
+      - STT_MISHEAR_BELOW=0.6
+      # 합성 API의 주소, 목소리, 모델. 목소리는 하나로 고정해 매일 같은 상대와 이야기하는 느낌을 준다.
+      - ELEVENLABS_URL=https://api.elevenlabs.io
+      - ELEVENLABS_VOICE_ID=hWXqitL3DEOLD49pgNWR
+      - ELEVENLABS_MODEL=eleven_flash_v2_5
+      # AI가 말하는 동안 사용자가 말을 시작하면 재생을 끊을지. 스피커 소리가 마이크로 되돌아와 스스로 끊기는 기기에서는 false로 둔다.
+      - VOICE_BARGE_IN=true
       # 일기 초안을 만들지 못했을 때 다시 시도하는 횟수(처음 한 번은 세지 않는다).
       # 다 쓰고도 만들지 못하면 빈 초안을 남겨 사용자가 직접 쓸 수 있게 한다.
       - DIARY_JOB_RETRIES=3

@@ -392,6 +392,28 @@ func (c *Catalogue) Reflect(words string) Phrase {
 	}
 }
 
+// SpeechTexts는 미리 합성해 둘 수 있는 음성용 글을 모두 돌려준다. 사용자의 표현을 넣어 만드는 문형은 미리 만들 수 없어 빼고,
+// 표현 없이 나가는 그 문구의 기본 글은 넣는다. 순서는 정해져 있고 같은 글은 한 번만 나온다.
+func (c *Catalogue) SpeechTexts() []string {
+	seen := make(map[string]bool)
+	var out []string
+	add := func(text string) {
+		if text == "" || seen[text] {
+			return
+		}
+		seen[text] = true
+		out = append(out, text)
+	}
+	for _, id := range IDs() {
+		e := c.phrases[id]
+		add(e.Speech)
+		for _, alt := range e.Alternates {
+			add(alt.Speech)
+		}
+	}
+	return out
+}
+
 // Resources는 도움 자원을 평소의 순서로 돌려준다. 돌려준 값을 고쳐도 목록은 바뀌지 않는다.
 func (c *Catalogue) Resources() []Resource {
 	return append([]Resource(nil), c.resources...)
