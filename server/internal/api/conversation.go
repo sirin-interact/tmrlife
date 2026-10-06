@@ -22,7 +22,11 @@ import (
 	"github.com/sirin-interact/tmrlife/server/internal/httpserver"
 	"github.com/sirin-interact/tmrlife/server/internal/store"
 	"github.com/sirin-interact/tmrlife/server/internal/store/db"
+	"github.com/sirin-interact/tmrlife/server/internal/voice"
 )
+
+// websocketBinary는 소리 프레임의 종류다. 글은 MessageText다.
+const websocketBinary = websocket.MessageBinary
 
 // 대화 소켓을 닫을 때 쓰는 코드다. 1000~2999는 표준이 정한 값이라 쓰지 않고, 앱이 쓸 수 있는 4000번대를 쓴다.
 // 웹앱은 이 값을 보고 다시 이을지 말지 고른다. 같은 뜻의 코드가 openapi.yaml의 채널 설명에도 적혀 있다.
@@ -87,6 +91,11 @@ type ConversationOptions struct {
 	PingTimeout       time.Duration
 	DiaryPollInterval time.Duration
 	DiaryPollTimeout  time.Duration
+
+	// Voice는 음성 인식과 합성이다. 둘 다 없으면 음성 방식을 열지 않고, 요청에는 voice_unavailable로 답한다.
+	Voice voice.Provider
+	// BargeIn이 참이면 AI가 말하는 동안 사용자가 말을 시작할 때 재생을 끊는다.
+	BargeIn bool
 }
 
 // Conversation은 대화 채널이다. 연결 하나가 대화 하나를 맡는다.
@@ -333,6 +342,17 @@ type conversationConn struct {
 	turnDone chan struct{}
 	// turnResult는 돌고 있는 턴의 결과를 받는다. 도는 턴이 없으면 nil이라 고르지 않는다.
 	turnResult chan turnOutcome
+
+	// connCtx는 연결이 살아 있는 동안의 컨텍스트다. 턴보다 오래 사는 일(말을 읽어 주는 것)이 이것을 쓴다.
+	connCtx context.Context
+	// voiceSignals는 인식 스트림의 사건이 주 고리로 들어오는 통이다.
+	voiceSignals chan voiceSignal
+	// voiceMu는 voice와 audioRejectedWarned를 지킨다. 읽기 고루틴이 소리를 넘길 곳을 찾을 때 함께 본다.
+	voiceMu sync.RWMutex
+	// voice는 지금의 음성 세션이다. 채팅 방식이면 nil이다.
+	voice *voiceSession
+	// audioRejectedWarned는 채팅 방식에서 소리가 왔다고 이미 알렸는지다.
+	audioRejectedWarned bool
 }
 
 // turnOutcome은 따로 돌린 턴 하나가 끝난 결과다.
@@ -360,6 +380,10 @@ func (c *conversationConn) run(ctx context.Context) {
 		cancel()
 		wg.Wait()
 	}()
+	c.connCtx = ctx
+	c.voiceSignals = make(chan voiceSignal, voiceSignalBuffer)
+	// 음성 세션은 연결의 컨텍스트가 끝나기 전에 내린다. 읽어 주던 말의 끝을 알리고 인식 스트림을 닫는 데 연결이 필요하다.
+	defer c.closeVoice()
 
 	wg.Add(1)
 	go func() {
@@ -404,7 +428,11 @@ func (c *conversationConn) run(ctx context.Context) {
 					return
 				}
 			}
-			idle.restart(c.session != nil && !c.ended)
+			// 턴이 도는 동안 알아들은 말이 있으면 그 말로 이어간다. 미뤄 둔 글이 먼저다.
+			if !c.turnRunning() && !c.submitPendingSpeech(ctx, idle) {
+				return
+			}
+			idle.restart(c.session != nil && !c.ended && !c.turnRunning())
 
 		case data, ok := <-frames:
 			if !ok {
@@ -415,8 +443,8 @@ func (c *conversationConn) run(ctx context.Context) {
 			if !ok {
 				continue
 			}
-			// 턴이 도는 동안에도 끝내기는 바로 받는다. 나머지는 차례를 지키려고 뒤로 미룬다.
-			if _, isEnd := message.(WsEnd); c.turnRunning() && !isEnd {
+			// 턴이 도는 동안에도 끝내기, 끼어들기, 방식 바꾸기는 바로 받는다. 글만 차례를 지키려고 뒤로 미룬다.
+			if _, isText := message.(WsUserText); c.turnRunning() && isText {
 				deferred = message
 				continue
 			}
@@ -424,6 +452,11 @@ func (c *conversationConn) run(ctx context.Context) {
 				return
 			}
 			idle.restart(c.session != nil && !c.ended && !c.turnRunning())
+
+		case sig := <-c.voiceSignals:
+			if !c.handleVoiceSignal(ctx, sig, idle) {
+				return
+			}
 
 		case <-idle.check():
 			// 3분쯤 말이 없다. 한 번 묻고 다시 기다린다.
@@ -469,18 +502,19 @@ func (c *conversationConn) readLoop(ctx context.Context, out chan<- []byte) erro
 			return err
 		}
 		if typ != websocket.MessageText {
-			// 남은 바이트를 버리지 않으면 다음 프레임의 머리를 이 바이트에서 읽는다. 그러면 규약 위반으로 연결이 끊긴다.
-			n, err := io.Copy(io.Discard, io.LimitReader(reader, limit+1))
+			// 바이너리 프레임은 소리다. 한도보다 한 바이트를 더 읽어 본다. 더 있으면 한도를 넘긴 것이다.
+			data, err := io.ReadAll(io.LimitReader(reader, maxAudioFrameBytes+1))
 			if err != nil {
 				return err
 			}
-			if n > limit {
-				// 한도를 넘겼다. 남은 바이트는 읽지 않는다. 글일 때와 똑같이 알리고 닫는다.
+			if len(data) > maxAudioFrameBytes {
+				// 남은 바이트는 읽지 않는다. 글일 때와 똑같이 알리고 닫는다.
 				c.sendError(ctx, WsErrorCodeMessageTooLarge, nil)
 				c.close(ctx, websocket.StatusMessageTooBig, "message too large")
 				return nil
 			}
-			c.sendError(ctx, WsErrorCodeInvalidMessage, nil)
+			// 소리는 주 고리를 거치지 않고 바로 인식기로 간다. 글 하나가 미뤄져 있어도 소리는 흘러야 한다.
+			c.acceptAudio(ctx, data)
 			continue
 		}
 		// 한도보다 한 바이트를 더 읽어 본다. 더 있으면 한도를 넘긴 것이다.
@@ -560,6 +594,16 @@ func (c *conversationConn) dispatch(ctx context.Context, message any) bool {
 		// 멈추지 않고 부르면 모델이 답할 때까지 끝내기가 먹히지 않는다.
 		c.stopTurn(ctx)
 		return c.endConversation(ctx, store.EndReasonUser)
+	case WsSetMode:
+		return c.handleSetMode(ctx, m)
+	case WsInterrupt:
+		c.handleInterrupt()
+		return true
+	case WsFinalize:
+		c.handleFinalize(ctx)
+		return true
+	case WsListen:
+		return c.handleListen(ctx, m)
 	default:
 		c.sendError(ctx, WsErrorCodeInvalidMessage, nil)
 		return true
@@ -571,10 +615,19 @@ func (c *conversationConn) handleStart(ctx context.Context, m WsStart) bool {
 		c.sendError(ctx, WsErrorCodeAlreadyStarted, nil)
 		return true
 	}
-	if m.Mode != ConversationModeChat {
-		// 음성은 아직 이 채널로 받지 않는다.
+	if !m.Mode.Valid() {
 		c.sendError(ctx, WsErrorCodeUnsupportedMode, nil)
 		return true
+	}
+	mode := store.ModeChat
+	if m.Mode == ConversationModeVoice {
+		// 음성을 열지 못해도 대화는 연다. 글로는 언제나 이야기할 수 있다.
+		if v, err := c.openVoice(ctx); err != nil {
+			c.sendError(ctx, WsErrorCodeVoiceUnavailable, nil)
+		} else {
+			c.setVoice(v)
+			mode = store.ModeVoice
+		}
 	}
 
 	previous, ok := c.channel.register(c)
@@ -593,7 +646,7 @@ func (c *conversationConn) handleStart(ctx context.Context, m WsStart) bool {
 
 	session, err := c.channel.opts.Engine.Start(ctx, engine.StartInput{
 		User: c.user,
-		Mode: store.ModeChat,
+		Mode: mode,
 		Sink: engine.SinkFunc(c.emit),
 	})
 	if err != nil {
@@ -619,13 +672,14 @@ func (c *conversationConn) handleUserText(ctx context.Context, m WsUserText) boo
 		return true
 	}
 
-	c.beginTurn(ctx, m)
+	// 글로 쓴 말은 음성 방식에서도 글로 남는다.
+	c.beginTurn(ctx, turnInput{clientMessageID: m.ClientMessageID, text: m.Text, modality: store.ModeChat})
 	return true
 }
 
 // beginTurn은 턴 하나를 따로 돌린다. 결과는 run의 고리가 turnResult로 받는다.
 // 연결을 빼앗기거나 끝내기가 들어오거나 서버가 내려갈 때 이 컨텍스트가 취소된다.
-func (c *conversationConn) beginTurn(ctx context.Context, m WsUserText) {
+func (c *conversationConn) beginTurn(ctx context.Context, in turnInput) {
 	turnCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	result := make(chan turnOutcome, 1)
@@ -637,11 +691,8 @@ func (c *conversationConn) beginTurn(ctx context.Context, m WsUserText) {
 
 	go func() {
 		defer close(done)
-		turn, err := c.channel.opts.Engine.Handle(turnCtx, c.session, engine.Say{
-			ClientMessageID: m.ClientMessageID,
-			Text:            m.Text,
-		})
-		result <- turnOutcome{clientMessageID: m.ClientMessageID, turn: turn, err: err}
+		turn, err := c.channel.opts.Engine.Handle(turnCtx, c.session, in.say())
+		result <- turnOutcome{clientMessageID: in.clientMessageID, turn: turn, err: err}
 	}()
 }
 
@@ -697,6 +748,8 @@ func (c *conversationConn) endConversation(ctx context.Context, reason string) b
 		return false
 	}
 	c.ended = true
+	// 더 들을 말이 없다. 인식 스트림을 닫고, 읽어 주던 말이 있으면 멈춘다.
+	c.closeVoice()
 	// 여기서부터는 사용자의 글을 더 받지 않는다. 일기 소식만 기다린다.
 	c.awaitDiary(ctx)
 	c.close(ctx, websocket.StatusNormalClosure, "conversation ended")
@@ -780,6 +833,8 @@ func (c *conversationConn) emit(ctx context.Context, event engine.Event) error {
 			Resumed:         e.Resumed,
 			Utterances:      utteranceList(e.Utterances),
 			ResourcesPinned: e.ResourcesPinned,
+			Mode:            c.effectiveMode(),
+			VoiceAvailable:  c.channel.voiceAvailable(),
 		})
 	case engine.Accepted:
 		err = message.FromWsThinking(WsThinking{ClientMessageID: e.ClientMessageID, Seq: seqOf(e.Seq)})
@@ -804,7 +859,14 @@ func (c *conversationConn) emit(ctx context.Context, event engine.Event) error {
 	if err != nil {
 		return fmt.Errorf("api: build conversation message: %w", err)
 	}
-	return c.writeErr(ctx, message)
+	if err := c.writeErr(ctx, message); err != nil {
+		return err
+	}
+	if e, ok := event.(engine.AIText); ok {
+		// 글이 먼저 닿고 소리가 뒤따른다. 소리는 턴보다 오래 살아서 따로 돈다.
+		c.speak(e.Seq, e.Speech)
+	}
+	return nil
 }
 
 // sendError는 오류 메시지 하나를 내보낸다. 사용자가 쓴 글은 담지 않는다.

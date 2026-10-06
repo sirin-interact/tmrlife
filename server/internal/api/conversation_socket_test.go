@@ -38,6 +38,14 @@ type socketFixture struct {
 
 func newSocketFixture(t *testing.T, adjust func(*ConversationOptions)) *socketFixture {
 	t.Helper()
+	return newSocketFixtureWith(t, adjust, nil)
+}
+
+// newSocketFixtureWith는 엔진의 조정 값(되묻기 기준 등)까지 바꿀 수 있는 자리다.
+func newSocketFixtureWith(
+	t *testing.T, adjust func(*ConversationOptions), adjustEngine func(*engine.Options),
+) *socketFixture {
+	t.Helper()
 	talk := fake.New("fake-conversation")
 	judge := fake.New("fake-gate")
 	var chat *Conversation
@@ -63,10 +71,14 @@ func newSocketFixture(t *testing.T, adjust func(*ConversationOptions)) *socketFi
 		generator, err := reply.New(talk, replyPrompts, catalogue, reply.Options{Thinking: ai.ThinkingLow})
 		require.NoError(t, err)
 
-		e, err := engine.New(engine.Options{
+		eopts := engine.Options{
 			Store: opts.Store, Sealers: opts.Sealers, Gate: detector, Reply: generator,
 			Phrases: catalogue, Clock: opts.Clock, Logger: opts.Logger,
-		})
+		}
+		if adjustEngine != nil {
+			adjustEngine(&eopts)
+		}
+		e, err := engine.New(eopts)
 		require.NoError(t, err)
 
 		copts := ConversationOptions{
@@ -392,7 +404,7 @@ func TestConversationSocketLimits(t *testing.T) {
 		assert.Equal(t, "ready", kind, ready)
 	})
 
-	t.Run("한도를 넘긴 글이 아닌 프레임은 글일 때와 똑같이 끝난다", func(t *testing.T) {
+	t.Run("한도를 넘긴 소리 프레임은 글일 때와 똑같이 끝난다", func(t *testing.T) {
 		f := newSocketFixture(t, nil)
 		cookie := f.login(t, "socket-binary-big@example.com")
 		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
@@ -402,7 +414,8 @@ func TestConversationSocketLimits(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = c.CloseNow() }()
 
-		require.NoError(t, c.Write(ctx, websocket.MessageBinary, make([]byte, 2048)))
+		// 소리 프레임의 한도는 글의 한도와 따로 있다. 웹앱이 보내는 100ms 조각의 열 배가 넘는 프레임은 고장 난 클라이언트다.
+		require.NoError(t, c.Write(ctx, websocket.MessageBinary, make([]byte, maxAudioFrameBytes+1)))
 		kind, msg := wsRecv(ctx, t, c)
 		require.Equal(t, "error", kind, msg)
 		assert.Equal(t, string(WsErrorCodeMessageTooLarge), msg["code"])

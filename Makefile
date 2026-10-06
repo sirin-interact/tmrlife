@@ -266,8 +266,9 @@ eval: ## 실제 모델을 부르는 평가를 한꺼번에 돌린다 (돈과 시
 	@if [ -z "$${GEMINI_API_KEY:-}" ]; then echo "!! GEMINI_API_KEY가 없다"; exit 1; fi
 	@echo "==> server: 실제 모델 평가 (gate, engine, reply, diary, analysis, gemini)"
 	@cd server && GATE_LIVE_EVAL=1 GATE_INDEP=1 ENGINE_REDTEAM=1 REPLY_LIVE_EVAL=1 \
-		SIGNAL_ACCURACY_TESTS=1 GEMINI_LIVE_TESTS=1 GEMINI_LIVE_EVAL=1 \
-		go test -count=1 -v -timeout 30m ./internal/gate/ ./internal/engine/ ./internal/reply/ ./internal/diary/ ./internal/analysis/ ./internal/ai/gemini/
+		SIGNAL_ACCURACY_TESTS=1 GEMINI_LIVE_TESTS=1 GEMINI_LIVE_EVAL=1 VOICE_LIVE_TESTS=1 \
+		go test -count=1 -v -timeout 30m ./internal/gate/ ./internal/engine/ ./internal/reply/ ./internal/diary/ ./internal/analysis/ ./internal/ai/gemini/ \
+		./internal/voice/soniox/ ./internal/voice/elevenlabs/
 
 # DB, API 서버, 작업자, 빌드된 웹앱을 띄우고 브라우저(chromium)로 가입부터 일기까지 밟아 본 뒤 모두 내린다.
 # 일기 초안은 작업자가 만들기 때문에 서버만으로는 대화가 일기까지 가지 않는다.

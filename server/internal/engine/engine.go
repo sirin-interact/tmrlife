@@ -90,6 +90,9 @@ type Options struct {
 	ContextTurns int
 	// ReplyTurns가 0이면 reply.DefaultMaxTurns다. 답을 만들 때 보는 지난 말의 수다.
 	ReplyTurns int
+	// MishearBelow는 음성으로 들은 말의 확신도가 이 값보다 낮을 때 되묻는 기준이다. 0이면 되묻지 않는다.
+	// 확인 단계(1)의 말에만 적용한다. 대응 단계 이상은 확신도와 상관없이 미리 써 둔 말이 나간다. 낮춰 잡지 않는다.
+	MishearBelow float32
 }
 
 // Engine은 대화 한 바퀴를 돌린다. 여러 고루틴에서 함께 써도 된다. 대화 하나의 턴은 Session이 줄을 세운다.
@@ -104,6 +107,7 @@ type Engine struct {
 	params   params.Params
 	ctxTurns int
 	maxTurns int
+	mishear  float32
 }
 
 // New는 엔진을 만든다.
@@ -125,6 +129,8 @@ func New(opts Options) (*Engine, error) {
 		return nil, errors.New("engine: logger is required")
 	case opts.ContextTurns < 0 || opts.ReplyTurns < 0:
 		return nil, errors.New("engine: turn counts must not be negative")
+	case opts.MishearBelow < 0 || opts.MishearBelow > 1:
+		return nil, errors.New("engine: mishear threshold must be between 0 and 1")
 	}
 
 	p := opts.Params
@@ -145,6 +151,7 @@ func New(opts Options) (*Engine, error) {
 		params:   p,
 		ctxTurns: opts.ContextTurns,
 		maxTurns: opts.ReplyTurns,
+		mishear:  opts.MishearBelow,
 	}
 	if e.ctxTurns == 0 {
 		e.ctxTurns = classifier.DefaultContextTurns
@@ -242,6 +249,24 @@ func (s *Session) UserID() uuid.UUID { return s.user.ID }
 
 // Location은 기록 날짜를 정하는 데 쓴 시간대다.
 func (s *Session) Location() *time.Location { return s.loc }
+
+// Mode는 지금의 대화 방식이다(store.ModeChat, store.ModeVoice).
+func (s *Session) Mode() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.mode
+}
+
+// SetMode는 대화 방식을 바꾼다. 음성과 채팅을 오가도 같은 대화가 이어지고, 그 뒤의 말은 새 방식으로 저장된다.
+// 모르는 값은 무시한다.
+func (s *Session) SetMode(mode string) {
+	if mode != store.ModeChat && mode != store.ModeVoice {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mode = mode
+}
 
 // ResourcesPinned는 이 대화에서 도움 자원을 화면에 고정해 두었는지다.
 func (s *Session) ResourcesPinned() bool {

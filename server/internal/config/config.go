@@ -85,6 +85,7 @@ type Config struct {
 	LLM            LLM
 	Conversation   Conversation
 	WebSocket      WebSocket
+	Voice          Voice
 	DiaryJob       DiaryJob
 	AnalysisJob    AnalysisJob
 }
@@ -305,6 +306,14 @@ func (c Config) LogValue() slog.Value {
 		slog.Duration("disconnect_end_after", c.Conversation.DisconnectEndAfter),
 		slog.Int64("ws_max_message_bytes", c.WebSocket.MaxMessageBytes),
 		slog.String("ws_message_rate_limit", c.WebSocket.MessageRate.String()),
+		slog.String("voice_provider", string(c.Voice.Provider)),
+		slog.String("soniox_model", c.Voice.SonioxModel),
+		slog.Any("stt_language_hints", c.Voice.LanguageHints),
+		slog.Duration("stt_max_endpoint_delay", c.Voice.MaxEndpointDelay),
+		slog.Float64("stt_mishear_below", float64(c.Voice.MishearBelow)),
+		slog.String("elevenlabs_model", c.Voice.TTSModel),
+		slog.String("elevenlabs_voice_id", c.Voice.VoiceID),
+		slog.Bool("voice_barge_in", c.Voice.BargeIn),
 		slog.Int("diary_job_retries", c.DiaryJob.Retries),
 		slog.Int("analysis_job_retries", c.AnalysisJob.Retries),
 	)
@@ -397,6 +406,18 @@ type raw struct {
 
 	WSMaxMessageBytes  string `env:"WS_MAX_MESSAGE_BYTES" envDefault:"16384"`
 	WSMessageRateLimit string `env:"WS_MESSAGE_RATE_LIMIT" envDefault:"20/1m"`
+
+	// 기본값을 여기에 적지 않는다. 적지 않았다는 사실이 있어야 키를 보고 고를 수 있다.
+	VoiceProvider       string `env:"VOICE_PROVIDER"`
+	SonioxURL           string `env:"SONIOX_URL" envDefault:"wss://stt-rt.soniox.com/transcribe-websocket"`
+	SonioxModel         string `env:"SONIOX_MODEL" envDefault:"stt-rt-v5"`
+	STTLanguageHints    string `env:"STT_LANGUAGE_HINTS" envDefault:"ko"`
+	STTMaxEndpointDelay string `env:"STT_MAX_ENDPOINT_DELAY" envDefault:"3s"`
+	STTMishearBelow     string `env:"STT_MISHEAR_BELOW" envDefault:"0.6"`
+	ElevenLabsURL       string `env:"ELEVENLABS_URL" envDefault:"https://api.elevenlabs.io"`
+	ElevenLabsVoiceID   string `env:"ELEVENLABS_VOICE_ID" envDefault:"hWXqitL3DEOLD49pgNWR"`
+	ElevenLabsModel     string `env:"ELEVENLABS_MODEL" envDefault:"eleven_flash_v2_5"`
+	VoiceBargeIn        string `env:"VOICE_BARGE_IN" envDefault:"true"`
 
 	DiaryJobRetries    string `env:"DIARY_JOB_RETRIES" envDefault:"3"`
 	AnalysisJobRetries string `env:"ANALYSIS_JOB_RETRIES" envDefault:"3"`
@@ -556,6 +577,11 @@ func LoadFrom(environ map[string]string) (Config, error) {
 	provider, providerProblems := loadAIProvider(r, cfg.Env.IsProd(), cfg.Providers.GeminiAPIKey.IsSet())
 	cfg.LLM.Provider = provider
 	problems = append(problems, providerProblems...)
+
+	voice, voiceProblems := loadVoice(r, cfg.Env.IsProd(),
+		cfg.Providers.SonioxAPIKey.IsSet(), cfg.Providers.ElevenLabsAPIKey.IsSet())
+	cfg.Voice = voice
+	problems = append(problems, voiceProblems...)
 
 	flow, flowProblems := loadConversationFlow(r)
 	cfg.LLM.GateTimeout = flow.gateTimeout
