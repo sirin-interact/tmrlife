@@ -14,6 +14,7 @@ import {
   STAGE_REASON_LABEL,
   TREND_ROW_LABEL,
 } from '@/content/reviewText';
+import { ENDED_TEXT, NOTICE_TEXT, PHASE_TEXT, TALK_TEXT } from '@/content/talkText';
 import { TREND_TEXT } from '@/content/trendText';
 import { AVOIDED_WORDS, DENIABLE_WORDS, DENIAL_SENTENCES, stringsIn } from '@/test/avoidedWords';
 
@@ -29,8 +30,9 @@ const ITEMS: readonly SignalItem[] = [
 ];
 const STATUSES: readonly SignalStatus[] = ['observed', 'not_observed', 'not_mentioned'];
 
-/** 추세·근거·내부 확인 화면의 문구 전부. 새 문구를 담은 파일이 생기면 여기에 더한다. */
+/** 대화·추세·근거·내부 확인 화면의 문구 전부. 새 문구를 담은 파일이 생기면 여기에 더한다. */
 const SCREEN_COPY: Record<string, unknown> = {
+  대화: [TALK_TEXT, PHASE_TEXT, NOTICE_TEXT, ENDED_TEXT],
   추세: TREND_TEXT,
   근거: [
     EVIDENCE_TEXT,

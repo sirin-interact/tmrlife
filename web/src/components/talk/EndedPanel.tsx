@@ -13,7 +13,7 @@ interface EndedPanelProps {
   onTalkAgain: () => void;
 }
 
-/** 대화가 끝난 뒤의 자리. 일기 초안을 기다렸다가, 준비되면 일기 확인 화면으로 넘어간다. */
+/** 대화가 끝난 뒤의 자리. 화면 가운데에 놓여 일기 초안을 기다렸다가, 준비되면 일기 확인 화면으로 넘어간다. */
 export function EndedPanel({ ended, diaryReady, onTalkAgain }: EndedPanelProps) {
   const navigate = useNavigate();
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -37,13 +37,13 @@ export function EndedPanel({ ended, diaryReady, onTalkAgain }: EndedPanelProps) 
   return (
     <section
       aria-labelledby="talk-ended-title"
-      className="flex flex-col gap-4 border-t bg-background pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+      className="flex w-full max-w-sm flex-col gap-4 self-center py-6 text-center"
     >
       <h2
         id="talk-ended-title"
         ref={titleRef}
         tabIndex={-1}
-        className="text-lg leading-snug font-semibold outline-none"
+        className="text-xl leading-snug font-semibold outline-none"
       >
         {endedText(ended.reason)}
       </h2>
@@ -54,13 +54,13 @@ export function EndedPanel({ ended, diaryReady, onTalkAgain }: EndedPanelProps) 
             {polled.slow ? TALK_TEXT.diarySlow : TALK_TEXT.diaryWaiting}
           </p>
           {polled.slow && (
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-2 pt-2">
               {ended.recordDate !== null && (
-                <Button asChild className="sm:flex-1">
+                <Button asChild>
                   <Link to={`/diary/${ended.recordDate}`}>{TALK_TEXT.toDiary}</Link>
                 </Button>
               )}
-              <Button asChild variant="outline" className="sm:flex-1">
+              <Button asChild variant="outline">
                 <Link to="/">{TALK_TEXT.toHome}</Link>
               </Button>
             </div>
@@ -69,14 +69,14 @@ export function EndedPanel({ ended, diaryReady, onTalkAgain }: EndedPanelProps) 
       ) : (
         <>
           <p className="text-muted-foreground">{TALK_TEXT.noDiary}</p>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button asChild className="sm:flex-1">
+          <div className="flex flex-col gap-2 pt-2">
+            <Button asChild>
               <Link to="/">{TALK_TEXT.toHome}</Link>
             </Button>
-            <Button asChild variant="outline" className="sm:flex-1">
+            <Button asChild variant="outline">
               <Link to="/diary">{TALK_TEXT.toDiaryList}</Link>
             </Button>
-            <Button type="button" variant="ghost" onClick={onTalkAgain} className="sm:flex-1">
+            <Button type="button" variant="ghost" onClick={onTalkAgain}>
               {TALK_TEXT.talkAgain}
             </Button>
           </div>

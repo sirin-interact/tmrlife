@@ -1,14 +1,69 @@
-import { useRef, useState } from 'react';
+import {
+  AudioLinesIcon,
+  ChevronLeftIcon,
+  KeyboardIcon,
+  LifeBuoyIcon,
+  MessageSquareTextIcon,
+  MicIcon,
+  MicOffIcon,
+  XIcon,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Link, NavLink } from 'react-router';
 
 import { ConfirmPanel } from '@/components/ConfirmPanel';
 import { ResourceList } from '@/components/ResourceList';
+import { Caption } from '@/components/talk/Caption';
 import { Composer } from '@/components/talk/Composer';
 import { EndedPanel } from '@/components/talk/EndedPanel';
 import { MessageList } from '@/components/talk/MessageList';
+import { Orb, type OrbAction, type OrbMode } from '@/components/talk/Orb';
 import { Button } from '@/components/ui/button';
 import { noticeText, phaseText, TALK_TEXT } from '@/content/talkText';
 import { formatRecordDateShort } from '@/lib/recordDate';
+import { cn } from '@/lib/utils';
+import type { ConversationState } from '@/talk/conversationState';
 import { useConversation } from '@/talk/useConversation';
+
+/**
+ * 소리 없이 글로만 답이 왔을 때 구슬이 "말하는" 모양으로 있는 시간. 읽는 데 걸리는 만큼이다.
+ * 소리가 붙은 말은 재생이 끝나는 순간이 이 자리를 맡는다.
+ */
+function speakingMillis(text: string): number {
+  return Math.min(6_000, 1_200 + text.length * 80);
+}
+
+/**
+ * 방금 도착한 말을 글로 건네는 동안 참이다. 말마다 한 번씩 켜졌다가 읽을 만큼의 시간이 지나면 꺼진다.
+ * 그 말에 소리가 붙었으면(voicedSeq) 시간으로 흉내 내지 않는다. 소리가 끝난 뒤에 다시 말하는 모양이 되면 어색하다.
+ */
+function useTimedSpeaking(
+  arrived: ConversationState['arrived'],
+  voicedSeq: ConversationState['voicedSeq'],
+): boolean {
+  const [doneSeq, setDoneSeq] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (arrived === null) return;
+    const timer = window.setTimeout(() => setDoneSeq(arrived.seq), speakingMillis(arrived.text));
+    return () => window.clearTimeout(timer);
+  }, [arrived]);
+
+  return arrived !== null && arrived.seq !== voicedSeq && doneSeq !== arrived.seq;
+}
+
+function orbModeOf(state: ConversationState, timedSpeaking: boolean): OrbMode {
+  if (state.phase === 'failed' || state.phase === 'taken_over' || state.phase === 'ended') {
+    return 'off';
+  }
+  // 처음 잇는 중이거나 다시 잇는 중이면 조용히 숨만 쉰다.
+  if (state.phase !== 'ready') return 'idle';
+  if (state.speaking !== null) return 'speaking';
+  if (state.awaitingReply) return 'thinking';
+  if (timedSpeaking) return 'speaking';
+  if (state.mic === 'on' && state.mode === 'voice' && state.listening) return 'listening';
+  return 'idle';
+}
 
 interface TalkSessionProps {
   onTalkAgain: () => void;
@@ -18,11 +73,74 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
   const talk = useConversation();
   const { state } = talk;
   const [confirmingEnd, setConfirmingEnd] = useState(false);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  /** 음성으로 이야기하는 중에 글 쓰는 자리를 열어 두었는지 */
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  /** 구슬을 눌러 시작하라는 권유를 거둘 때. 한 번 시작했거나, 글로 먼저 이야기했거나, 음성을 껐으면 다시 권하지 않는다. */
+  const [offerDismissed, setOfferDismissed] = useState(false);
   const endButtonRef = useRef<HTMLButtonElement>(null);
+  const orbRef = useRef<HTMLElement>(null);
+  const timedSpeaking = useTimedSpeaking(state.arrived, state.voicedSeq);
+
+  // 소리 크기는 초당 수십 번 온다. 상태로 두면 화면 전체가 그만큼 다시 그려지므로 구슬의 CSS 변수에 바로 넣는다.
+  const { subscribeLevel } = talk;
+  useEffect(
+    () =>
+      subscribeLevel((level) => {
+        orbRef.current?.style.setProperty('--orb-level', level.toFixed(3));
+      }),
+    [subscribeLevel],
+  );
 
   const ended = state.ended;
-  const connectionText = phaseText(state.phase);
   const canSend = state.phase === 'ready' && !state.awaitingReply && !state.ending;
+  const orbMode = orbModeOf(state, timedSpeaking);
+  /** 마이크가 켜져 있거나 켜지는 중. 맨 아래 줄이 음성 모양이 된다. */
+  const voiceOn = state.mic === 'on' || state.mic === 'starting';
+  /** 마이크가 켜져 있고 서버도 음성으로 열려 있다. 듣고 있거나, 한 마디가 끝나 다음 누름을 기다린다. */
+  const voiceReady = state.mic === 'on' && state.mode === 'voice';
+  const listeningNow = voiceReady && state.listening;
+  const offerVoice =
+    !offerDismissed &&
+    state.voiceAvailable &&
+    state.phase === 'ready' &&
+    state.mic === 'off' &&
+    !state.ending &&
+    talk.preferredMode === 'voice';
+  // 상태 줄에는 한 번에 한 가지만 적는다. 마치는 중 > 연결 상태 > 답을 준비하는 중.
+  const statusLine = state.ending
+    ? TALK_TEXT.ending
+    : (phaseText(state.phase) ?? (state.awaitingReply ? TALK_TEXT.thinking : null));
+
+  // 구슬은 때에 따라 다른 일을 한다. 시작 전에는 시작, 내일이 말하는 동안은 끊고 말하기,
+  // 듣는 동안은 말 끝맺기, 한 마디가 끝나 멈춰 있으면 다음 말 듣기.
+  const orbAction: OrbAction | null = offerVoice
+    ? { label: TALK_TEXT.orbStart, onPress: startVoice }
+    : state.speaking !== null
+      ? { label: TALK_TEXT.orbInterrupt, onPress: talk.interrupt }
+      : listeningNow && !state.awaitingReply && !state.ending
+        ? { label: TALK_TEXT.orbDone, onPress: talk.finalize }
+        : voiceReady && !state.listening && !state.awaitingReply && !state.ending
+          ? { label: TALK_TEXT.orbListen, onPress: talk.listen }
+          : null;
+
+  // 사용자 동작 처리기에서 바로 부른다. iOS는 그 안에서 연 오디오만 소리를 낸다.
+  function startVoice() {
+    setOfferDismissed(true);
+    talk.startVoice();
+  }
+
+  function stopVoice() {
+    setOfferDismissed(true);
+    setKeyboardOpen(false);
+    talk.stopVoice();
+  }
+
+  function send(text: string): boolean {
+    const sent = talk.send(text);
+    if (sent) setOfferDismissed(true);
+    return sent;
+  }
 
   function cancelEnd() {
     setConfirmingEnd(false);
@@ -39,45 +157,40 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
     <div className="flex min-h-0 flex-1 flex-col">
       <title>이야기하기 · 내일</title>
 
-      <div className="flex items-center justify-between gap-3 pb-2">
-        <div className="flex min-w-0 flex-col">
-          <h1 className="text-lg leading-snug font-semibold">{TALK_TEXT.title}</h1>
+      {/* 앱의 머리말은 이 화면에서 접힌다. 처음으로 돌아가는 길과 "도움이 필요할 때"는 여기서 같은 자리에 둔다. */}
+      <header className="flex items-center justify-between gap-2">
+        <Link
+          to="/"
+          aria-label={TALK_TEXT.back}
+          className="-ml-3 inline-flex size-touch shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+        >
+          <ChevronLeftIcon aria-hidden="true" className="size-6" />
+        </Link>
+        <div className="flex min-w-0 flex-col items-center text-sm leading-snug">
+          <h1 className="font-semibold">{TALK_TEXT.title}</h1>
           {state.recordDate !== null && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground">
               <time dateTime={state.recordDate}>{formatRecordDateShort(state.recordDate)}</time>
             </p>
           )}
         </div>
-        {/* 끝내기는 언제나 보인다. 연결이 끊겨 있어도 누를 수 있고, 다시 이어지는 대로 서버에 전한다. */}
-        {ended === null && (
-          <Button
-            ref={endButtonRef}
-            type="button"
-            variant="outline"
-            onClick={() => setConfirmingEnd(true)}
-            disabled={state.ending || confirmingEnd}
-            className="shrink-0 px-4"
-          >
-            {TALK_TEXT.end}
-          </Button>
-        )}
-      </div>
-
-      {confirmingEnd && (
-        <ConfirmPanel
-          title={TALK_TEXT.endConfirmTitle}
-          confirmLabel={TALK_TEXT.endConfirm}
-          cancelLabel={TALK_TEXT.endCancel}
-          onConfirm={confirmEnd}
-          onCancel={cancelEnd}
-          className="mb-2"
+        {/* 힘든 순간은 어느 화면에서든 올 수 있다. 대화 중에도 이 링크는 다른 화면과 같은 자리(오른쪽 위)에 있다. */}
+        <NavLink
+          to="/help"
+          className={({ isActive }) =>
+            cn(
+              '-mr-2 inline-flex min-h-touch shrink-0 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-muted-foreground hover:text-foreground',
+              isActive && 'font-semibold text-foreground',
+            )
+          }
         >
-          <p>{TALK_TEXT.endConfirmBody}</p>
-        </ConfirmPanel>
-      )}
+          <LifeBuoyIcon aria-hidden="true" className="size-4" />
+          {TALK_TEXT.help}
+        </NavLink>
+      </header>
 
       {state.resources !== null && (
-        <section aria-labelledby="talk-resources-title" className="flex flex-col gap-2 pb-2">
+        <section aria-labelledby="talk-resources-title" className="flex flex-col gap-2 pt-3">
           <h2 id="talk-resources-title" className="text-sm font-semibold">
             {TALK_TEXT.resourcesTitle}
           </h2>
@@ -85,31 +198,63 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
         </section>
       )}
 
-      {/* 연결 상태와 잠깐의 알림. 나타날 때 화면 낭독기가 읽어 준다. */}
-      <div role="status" className="flex flex-col gap-1 text-sm text-muted-foreground">
-        {state.ending && <p>{TALK_TEXT.ending}</p>}
-        {!state.ending && connectionText !== null && <p>{connectionText}</p>}
-        {state.notice !== null && <p>{noticeText(state.notice)}</p>}
-      </div>
-      {(state.phase === 'failed' || state.phase === 'taken_over') && (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={talk.reconnect}
-          className="mt-2 self-start"
-        >
-          {state.phase === 'taken_over' ? TALK_TEXT.takeOver : TALK_TEXT.reconnect}
-        </Button>
+      {ended === null && (
+        <>
+          {/* 연결 상태와 잠깐의 알림. 나타날 때 화면 낭독기가 읽어 준다. */}
+          <div
+            role="status"
+            className="flex flex-col items-center gap-1 pt-3 text-center text-sm text-muted-foreground"
+          >
+            {statusLine !== null && <p>{statusLine}</p>}
+            {state.notice !== null && <p>{noticeText(state.notice)}</p>}
+          </div>
+          {(state.phase === 'failed' || state.phase === 'taken_over') && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={talk.reconnect}
+              className="mt-2 self-center"
+            >
+              {state.phase === 'taken_over' ? TALK_TEXT.takeOver : TALK_TEXT.reconnect}
+            </Button>
+          )}
+        </>
       )}
 
-      <div className="-mx-2 min-h-0 flex-1 overflow-y-auto overscroll-contain px-2">
-        <MessageList
-          messages={state.messages}
-          thinking={state.awaitingReply}
-          canRetry={canSend}
-          onRetry={talk.retry}
-        />
-      </div>
+      {ended !== null ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto">
+          <Orb mode="off" className="size-24 shrink-0" />
+          <EndedPanel ended={ended} diaryReady={state.diaryReady} onTalkAgain={onTalkAgain} />
+        </div>
+      ) : transcriptOpen ? (
+        <div className="-mx-2 min-h-0 flex-1 overflow-y-auto overscroll-contain px-2">
+          <MessageList
+            messages={state.messages}
+            thinking={state.awaitingReply}
+            canRetry={canSend}
+            onRetry={talk.retry}
+          />
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 py-4">
+          <Orb
+            ref={orbRef}
+            mode={orbMode}
+            action={orbAction}
+            className="size-40 shrink-0 sm:size-48"
+          />
+          <Caption
+            messages={state.messages}
+            partial={state.partial}
+            thinking={state.awaitingReply}
+            canRetry={canSend}
+            onRetry={talk.retry}
+          />
+          {offerVoice && (
+            <p className="-mt-4 text-sm text-muted-foreground">{TALK_TEXT.orbStartHint}</p>
+          )}
+        </div>
+      )}
 
       {/* 방금 도착한 말만 읽어 준다. 같은 말이 이어져도 다시 읽히도록 순번을 키로 써서 새로 그린다. */}
       <div aria-live="polite" className="sr-only">
@@ -122,16 +267,110 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
         {state.resources !== null && <p>{TALK_TEXT.resourcesAnnounce}</p>}
       </div>
 
-      {ended === null ? (
-        <Composer canSend={canSend} onSend={talk.send} />
-      ) : (
-        <EndedPanel ended={ended} diaryReady={state.diaryReady} onTalkAgain={onTalkAgain} />
+      {ended === null && (
+        <div className="flex flex-col gap-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {confirmingEnd && (
+            <ConfirmPanel
+              title={TALK_TEXT.endConfirmTitle}
+              confirmLabel={TALK_TEXT.endConfirm}
+              cancelLabel={TALK_TEXT.endCancel}
+              onConfirm={confirmEnd}
+              onCancel={cancelEnd}
+            >
+              <p>{TALK_TEXT.endConfirmBody}</p>
+            </ConfirmPanel>
+          )}
+          {/* 음성으로 이야기하는 중에도 글을 보낼 수 있다. 키보드 버튼으로 열면 줄 위에 글 쓰는 자리가 생긴다. */}
+          {voiceOn && keyboardOpen && <Composer canSend={canSend} onSend={send} />}
+          {/* 맨 아래 한 줄: 지난 말 보기, 가운데(듣는 중 표시 또는 글 쓰는 자리), 끝내기. */}
+          <div className="flex items-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label={TALK_TEXT.logLabel}
+              aria-pressed={transcriptOpen}
+              onClick={() => setTranscriptOpen((open) => !open)}
+              className={cn('rounded-full', transcriptOpen && 'bg-accent text-accent-foreground')}
+            >
+              <MessageSquareTextIcon aria-hidden="true" />
+            </Button>
+            {voiceOn ? (
+              <>
+                <div className="flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-input bg-card px-4 text-sm text-muted-foreground">
+                  <AudioLinesIcon
+                    aria-hidden="true"
+                    className={cn('size-5 shrink-0', listeningNow && 'text-primary')}
+                  />
+                  <span className="truncate">
+                    {listeningNow
+                      ? TALK_TEXT.listening
+                      : voiceReady
+                        ? TALK_TEXT.pausedHint
+                        : TALK_TEXT.micStarting}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={TALK_TEXT.typeInstead}
+                  aria-pressed={keyboardOpen}
+                  onClick={() => setKeyboardOpen((open) => !open)}
+                  className={cn('rounded-full', keyboardOpen && 'bg-accent text-accent-foreground')}
+                >
+                  <KeyboardIcon aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={TALK_TEXT.voiceStop}
+                  onClick={stopVoice}
+                  className="rounded-full"
+                >
+                  <MicOffIcon aria-hidden="true" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Composer canSend={canSend} onSend={send} className="flex-1" />
+                {state.voiceAvailable && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label={TALK_TEXT.voiceStart}
+                    onClick={startVoice}
+                    disabled={state.ending}
+                    className="rounded-full"
+                  >
+                    <MicIcon aria-hidden="true" />
+                  </Button>
+                )}
+              </>
+            )}
+            {/* 끝내기는 언제나 보인다. 연결이 끊겨 있어도 누를 수 있고, 다시 이어지는 대로 서버에 전한다. */}
+            <Button
+              ref={endButtonRef}
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label={TALK_TEXT.end}
+              onClick={() => setConfirmingEnd(true)}
+              disabled={state.ending || confirmingEnd}
+              className="rounded-full"
+            >
+              <XIcon aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-/** 대화 화면(채팅). "다시 이야기하기"를 누르면 연결과 상태를 통째로 새로 만든다. */
+/** 대화 화면. "다시 이야기하기"를 누르면 연결과 상태를 통째로 새로 만든다. */
 export function TalkPage() {
   const [session, setSession] = useState(0);
 

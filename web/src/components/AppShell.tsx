@@ -10,7 +10,10 @@ import { cn } from '@/lib/utils';
 
 /** 경로 정의의 handle에 적어 두면 이 틀이 읽는다. */
 export interface ShellHandle {
-  /** 대화처럼 화면 전체를 쓰는 경로. 메뉴 줄을 접고, 화면 높이에 맞춰 안에서만 스크롤한다. */
+  /**
+   * 대화처럼 화면 전체를 쓰는 경로. 머리말과 메뉴 줄을 그리지 않고, 화면 높이에 맞춰 안에서만 스크롤한다.
+   * 머리말이 없으므로 그 화면이 "도움이 필요할 때" 링크를 스스로 같은 자리(오른쪽 위)에 둬야 한다.
+   */
   immersive?: boolean;
   /** 글을 읽고 쓰는 경로. 태블릿에서는 폰 너비보다 넓게 쓴다. */
   wide?: boolean;
@@ -88,65 +91,67 @@ export function AppShell() {
         본문으로 건너뛰기
       </a>
 
-      <header className={cn(column, 'pt-[max(1rem,env(safe-area-inset-top))]')}>
-        <div className="flex items-center justify-between gap-x-4">
-          <Link
-            to="/"
-            aria-label="내일 처음 화면"
-            className="inline-flex min-h-touch items-center rounded-lg text-xl font-bold tracking-tight"
-          >
-            내일
-          </Link>
-          {/* 힘든 순간은 어느 화면에서든 올 수 있다. 로그인하지 않았어도, 대화 중이어도 이 링크는 늘 같은 자리에 있다. */}
-          <NavLink
-            to="/help"
-            className={({ isActive }) =>
-              cn(
-                '-mr-2 inline-flex min-h-touch items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-muted-foreground hover:text-foreground',
-                isActive && 'font-semibold text-foreground',
-              )
-            }
-          >
-            <LifeBuoyIcon aria-hidden="true" className="size-4" />
-            도움이 필요할 때
-          </NavLink>
-        </div>
-
-        {me.data && !immersive && (
-          <div className="-mx-3 flex flex-wrap items-center justify-between">
-            <nav aria-label="주요 메뉴" className="flex items-center">
-              <NavLink to="/" end className={navLinkClass}>
-                오늘
-              </NavLink>
-              <NavLink to="/diary" className={navLinkClass}>
-                일기장
-              </NavLink>
-              {/* 이 앱이 가장 보여 주고 싶은 화면이다. 첫 화면의 카드를 거치지 않고도 갈 수 있게 둔다. */}
-              <NavLink to="/trend" className={navLinkClass}>
-                변화 추세
-              </NavLink>
-            </nav>
-            <Button
-              variant="ghost"
-              onClick={handleLogout}
-              disabled={logout.isPending}
-              className="px-3 font-medium text-muted-foreground"
+      {!immersive && (
+        <header className={cn(column, 'pt-[max(1rem,env(safe-area-inset-top))]')}>
+          <div className="flex items-center justify-between gap-x-4">
+            <Link
+              to="/"
+              aria-label="내일 처음 화면"
+              className="inline-flex min-h-touch items-center rounded-lg text-xl font-bold tracking-tight"
             >
-              로그아웃
-            </Button>
+              내일
+            </Link>
+            {/* 힘든 순간은 어느 화면에서든 올 수 있다. 로그인하지 않았어도, 대화 중이어도 이 링크는 늘 같은 자리에 있다. */}
+            <NavLink
+              to="/help"
+              className={({ isActive }) =>
+                cn(
+                  '-mr-2 inline-flex min-h-touch items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-muted-foreground hover:text-foreground',
+                  isActive && 'font-semibold text-foreground',
+                )
+              }
+            >
+              <LifeBuoyIcon aria-hidden="true" className="size-4" />
+              도움이 필요할 때
+            </NavLink>
           </div>
-        )}
-        {logoutError !== null && (
-          <p role="alert" className="text-sm text-destructive">
-            {logoutError}
-          </p>
-        )}
-        {!online && (
-          <p role="status" className="mt-2 rounded-lg bg-muted px-4 py-2 text-sm">
-            {OFFLINE_MESSAGE}
-          </p>
-        )}
-      </header>
+
+          {me.data && (
+            <div className="-mx-3 flex flex-wrap items-center justify-between">
+              <nav aria-label="주요 메뉴" className="flex items-center">
+                <NavLink to="/" end className={navLinkClass}>
+                  오늘
+                </NavLink>
+                <NavLink to="/diary" className={navLinkClass}>
+                  일기장
+                </NavLink>
+                {/* 이 앱이 가장 보여 주고 싶은 화면이다. 첫 화면의 카드를 거치지 않고도 갈 수 있게 둔다. */}
+                <NavLink to="/trend" className={navLinkClass}>
+                  변화 추세
+                </NavLink>
+              </nav>
+              <Button
+                variant="ghost"
+                onClick={handleLogout}
+                disabled={logout.isPending}
+                className="px-3 font-medium text-muted-foreground"
+              >
+                로그아웃
+              </Button>
+            </div>
+          )}
+          {logoutError !== null && (
+            <p role="alert" className="text-sm text-destructive">
+              {logoutError}
+            </p>
+          )}
+          {!online && (
+            <p role="status" className="mt-2 rounded-lg bg-muted px-4 py-2 text-sm">
+              {OFFLINE_MESSAGE}
+            </p>
+          )}
+        </header>
+      )}
 
       <main
         id="main"
@@ -156,7 +161,9 @@ export function AppShell() {
         className={cn(
           column,
           'flex flex-1 flex-col outline-none',
-          immersive ? 'min-h-0 pt-2' : 'pt-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]',
+          immersive
+            ? 'min-h-0 pt-[max(0.5rem,env(safe-area-inset-top))]'
+            : 'pt-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]',
         )}
       >
         <Outlet />

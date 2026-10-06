@@ -10,6 +10,7 @@ import {
   recordDateFromUrl,
   REFLECT_QUESTION,
   say,
+  showTranscript,
   signUp,
   talkLog,
   test,
@@ -120,6 +121,7 @@ test('죽고 싶다는 말에는 미리 써 둔 답과 전화번호가 나오고
 
   await test.step('화면을 새로 고쳐도 대화와 전화번호가 그대로 이어진다', async () => {
     await page.reload();
+    await showTranscript(page);
     await expect(talkLog(page).getByText(CRISIS_REPLY)).toBeVisible();
     await expect(userMessages(page)).toHaveCount(1);
     await expect(resources.getByRole('link', { name: /자살예방상담전화/ })).toHaveAttribute(
@@ -149,6 +151,7 @@ test('다른 화면이 대화를 이어받으면 앞의 화면은 물러나고, 
   await second.goto('/talk');
 
   await test.step('새로 연 화면이 지난 발화와 함께 대화를 이어받는다', async () => {
+    await showTranscript(second);
     await expect(userMessages(second)).toHaveCount(1);
     await expect(aiMessages(second).first()).toContainText(OPENING);
   });

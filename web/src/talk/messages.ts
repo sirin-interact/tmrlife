@@ -1,5 +1,7 @@
 import type {
+  ConversationMode,
   Resource,
+  WsAudioEndReason,
   WsClientMessage,
   WsEndReason,
   WsErrorCode,
@@ -14,6 +16,9 @@ export const CONVERSATION_PATH = '/ws/v1/conversation';
 
 /** 글 하나의 최대 길이(글자 수). 명세의 값과 같아야 한다. 넘으면 서버가 메시지 전체를 거절한다. */
 export const USER_TEXT_MAX_LENGTH = 2000;
+
+/** 서버가 내려보내는 소리의 샘플레이트 기본값(Hz). audio_start에 값이 없거나 읽을 수 없을 때만 쓴다. */
+export const DEFAULT_PLAYBACK_SAMPLE_RATE = 24_000;
 
 /**
  * 서버가 연결을 닫을 때 쓰는 코드. 1000~2999는 표준이 정한 값이라 쓰지 않고 앱이 쓸 수 있는 4000번대를 쓴다.
@@ -35,6 +40,12 @@ export function conversationUrl(location: Pick<Location, 'protocol' | 'host'>): 
 const SPEAKERS: Record<WsSpeaker, true> = { user: true, ai: true };
 const ORIGINS: Record<WsOrigin, true> = { user: true, model: true, fixed: true, template: true };
 const END_REASONS: Record<WsEndReason, true> = { user: true, idle: true };
+const MODES: Record<ConversationMode, true> = { chat: true, voice: true };
+const AUDIO_END_REASONS: Record<WsAudioEndReason, true> = {
+  done: true,
+  interrupted: true,
+  failed: true,
+};
 const ERROR_CODES: Record<WsErrorCode, true> = {
   invalid_message: true,
   message_too_large: true,
@@ -44,6 +55,7 @@ const ERROR_CODES: Record<WsErrorCode, true> = {
   unsupported_mode: true,
   conversation_ended: true,
   internal_error: true,
+  voice_unavailable: true,
 };
 
 /** 대화가 끝난 까닭. 이 앱이 모르는 값을 서버가 보내면 'other'로 읽는다. */
@@ -95,8 +107,9 @@ function parseUtterance(value: unknown): WsUtterance | null {
 }
 
 /**
- * 서버가 보낸 프레임 하나를 읽는다. 읽을 수 없거나 이 앱이 모르는 종류면 null이다.
+ * 서버가 보낸 텍스트 프레임 하나를 읽는다. 읽을 수 없거나 이 앱이 모르는 종류면 null이다.
  * 서버가 이 앱보다 새 판일 수 있으므로(설치된 앱은 옛 코드를 오래 들고 있다) 모르는 것이 와도 던지지 않는다.
+ * 바이너리 프레임(소리)은 여기로 오지 않는다. 소리는 JSON이 아니라서 받는 쪽이 먼저 가른다.
  */
 export function parseServerMessage(data: unknown): ServerMessage | null {
   if (typeof data !== 'string') return null;
@@ -123,6 +136,9 @@ export function parseServerMessage(data: unknown): ServerMessage | null {
         resumed: value.resumed === true,
         utterances,
         resources_pinned: value.resources_pinned === true,
+        // 음성을 모르는 옛 서버는 두 값을 보내지 않는다. 그때는 글로만 이야기하는 것으로 읽는다.
+        mode: isKnown(value.mode, MODES) ? value.mode : 'chat',
+        voice_available: value.voice_available === true,
       };
     }
     case 'thinking': {
@@ -153,6 +169,43 @@ export function parseServerMessage(data: unknown): ServerMessage | null {
       const { record_date: recordDate } = value;
       if (typeof recordDate !== 'string') return null;
       return { type: 'diary_ready', record_date: recordDate };
+    }
+    case 'mode':
+      // 모르는 방식으로 바뀌었다면 이 앱은 소리를 보낼 수 없다. 글로만 이야기하는 것으로 읽어 마이크를 거둔다.
+      return { type: 'mode', mode: isKnown(value.mode, MODES) ? value.mode : 'chat' };
+    case 'listening':
+      return { type: 'listening', active: value.active === true };
+    case 'transcript': {
+      const { text, client_message_id: clientMessageId } = value;
+      if (typeof text !== 'string') return null;
+      return {
+        type: 'transcript',
+        text,
+        final: value.final === true,
+        ...(typeof clientMessageId === 'string' && { client_message_id: clientMessageId }),
+      };
+    }
+    case 'audio_start': {
+      const { seq, sample_rate: sampleRate } = value;
+      if (!isSeq(seq)) return null;
+      return {
+        type: 'audio_start',
+        seq,
+        sample_rate:
+          typeof sampleRate === 'number' && Number.isFinite(sampleRate) && sampleRate >= 8000
+            ? sampleRate
+            : DEFAULT_PLAYBACK_SAMPLE_RATE,
+      };
+    }
+    case 'audio_end': {
+      const { seq, reason } = value;
+      if (!isSeq(seq)) return null;
+      // 모르는 까닭이라도 소리가 끝난 것은 같다. 받아 둔 소리를 끝까지 들려주는 쪽으로 읽는다.
+      return {
+        type: 'audio_end',
+        seq,
+        reason: isKnown(reason, AUDIO_END_REASONS) ? reason : 'done',
+      };
     }
     case 'error': {
       const { code, client_message_id: clientMessageId } = value;

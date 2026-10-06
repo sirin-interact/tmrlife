@@ -80,6 +80,10 @@ export const DIRECT_ASK = '혹시 죽고 싶다는 생각도 들어요?';
 /** 죽고 싶다는 생각이나 자해를 직접 말했을 때의 첫 응답. 미리 써 둔 문구 그대로 나간다. */
 export const CRISIS_REPLY = '말해줘서 고마워요. 그런 마음을 혼자 안고 있었네요.';
 
+/** 화면 가운데의 자막. 지금 주고받는 한 마디만 있다. */
+export const caption = (page: Page): Locator =>
+  page.getByRole('region', { name: '지금 나누는 말' });
+/** 지난 말까지 모두 있는 목록. showTranscript로 열어야 보인다. */
 export const talkLog = (page: Page): Locator => page.getByRole('list', { name: '대화 내용' });
 export const aiMessages = (page: Page): Locator =>
   talkLog(page).getByRole('listitem').filter({ hasText: '내일:' });
@@ -87,14 +91,28 @@ export const userMessages = (page: Page): Locator =>
   talkLog(page).getByRole('listitem').filter({ hasText: '나:' });
 export const composer = (page: Page): Locator => page.getByLabel('하고 싶은 이야기');
 
-/** 대화 화면을 열고 첫 안부가 올 때까지 기다린다. */
+/**
+ * "대화 내용"을 열어 지난 말까지 모두 보이게 한다. 이미 열려 있으면 그대로 둔다.
+ * 화면은 자막(지금의 한 마디)만 보여 주는 것이 기본이라, 말의 수를 세는 시나리오는 먼저 이것을 연다.
+ * 새로 고치거나 다시 열면 닫힌 채로 돌아온다.
+ */
+export async function showTranscript(page: Page): Promise<void> {
+  const toggle = page.getByRole('button', { name: '대화 내용' });
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click();
+  await expect(talkLog(page)).toBeVisible();
+}
+
+/** 대화 화면을 열고 첫 안부가 올 때까지 기다린 뒤, 말의 수를 셀 수 있게 "대화 내용"을 열어 둔다. */
 export async function openTalk(page: Page): Promise<void> {
   await page.getByRole('link', { name: '오늘 이야기하기' }).click();
   await expect(page).toHaveURL('/talk');
+  await expect(caption(page)).toContainText(OPENING);
+  await showTranscript(page);
   await expect(aiMessages(page).first()).toContainText(OPENING);
 }
 
-/** 글을 하나 보내고 답이 올 때까지 기다린다. 돌아오는 값은 그 답의 글이다. */
+/** 글을 하나 보내고 답이 올 때까지 기다린다. 돌아오는 값은 그 답의 글이다. "대화 내용"이 열려 있어야 한다. */
 export async function say(page: Page, text: string): Promise<string> {
   const answered = await aiMessages(page).count();
   await composer(page).fill(text);

@@ -14,14 +14,11 @@ interface MessageListProps {
   onRetry: (clientMessageId: string) => void;
 }
 
+// 답을 준비하고 있다는 말은 대화 화면의 상태 줄이 한 번만 알린다. 여기서는 모양만 보여 준다.
 function ThinkingIndicator() {
   return (
-    <li className="flex justify-start">
-      <div
-        role="status"
-        className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border bg-card px-4 py-4"
-      >
-        <span className="sr-only">{TALK_TEXT.thinking}</span>
+    <li aria-hidden="true" className="flex justify-start">
+      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border bg-card px-4 py-4">
         {[0, 1, 2].map((dot) => (
           <span
             key={dot}
@@ -39,7 +36,7 @@ function ThinkingIndicator() {
 }
 
 /**
- * 대화 내용. 새 말이 오면 맨 아래로 내려간다.
+ * 대화 내용 전체. "대화 내용"을 열었을 때 보이고, 새 말이 오면 맨 아래로 내려간다.
  * 이 목록 자체는 화면 낭독기에 새 말을 알리지 않는다. 이어가는 대화에서는 지난 발화가 한꺼번에 들어오는데,
  * 그것까지 모두 읽어 주면 안 되기 때문이다. 방금 도착한 말만 대화 화면의 알림 영역이 따로 읽어 준다.
  */
