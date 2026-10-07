@@ -1,5 +1,3 @@
-import { ArrowRightIcon, LeafIcon } from 'lucide-react';
-import { BrandScene } from '@/components/BrandScene';
 import '@/styles/auth.css';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
@@ -54,15 +52,13 @@ export function LoginPage() {
   return (
     <div className="auth-layout">
       <title>로그인 · 내일</title>
-      <BrandScene />
       <div className="auth-form-panel">
         <div className="auth-heading">
-          <span className="auth-heading__eyebrow">다시 만나요</span>
           <h1 className="text-2xl leading-snug font-semibold">다시 만나서 반가워요</h1>
           <p className="text-muted-foreground">오늘 하루도 편하게 이야기해 주세요.</p>
         </div>
 
-        <Card className="auth-card">
+        <Card>
           <form
             onSubmit={(event) =>
               void handleSubmit(onValid, () => setSummary(FORM_INVALID_MESSAGE))(event)
@@ -110,14 +106,8 @@ export function LoginPage() {
 
             <CardFooter>
               <FormErrorSummary key={submitCount} message={summary} details={fieldMessages} />
-              <Button
-                type="submit"
-                size="lg"
-                className="auth-submit w-full"
-                disabled={login.isPending}
-              >
+              <Button type="submit" size="lg" className="w-full" disabled={login.isPending}>
                 {login.isPending ? '로그인하고 있어요' : '로그인'}
-                <ArrowRightIcon aria-hidden="true" className="size-4" />
               </Button>
             </CardFooter>
           </form>
@@ -133,10 +123,6 @@ export function LoginPage() {
           >
             가입하기
           </Link>
-        </p>
-        <p className="auth-privacy">
-          <LeafIcon aria-hidden="true" className="size-3" />
-          나의 속도로, 편안하게 시작해요
         </p>
       </div>
     </div>

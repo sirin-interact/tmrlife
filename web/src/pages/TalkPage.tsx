@@ -234,10 +234,6 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
           <div className="talk-stage__orb">
             <Orb ref={orbRef} mode={orbMode} action={orbAction} />
           </div>
-          <div className="talk-stage__eyebrow" aria-hidden="true">
-            <span />
-            {TALK_TEXT.speakerAi}
-          </div>
           <Caption
             messages={state.messages}
             partial={state.partial}

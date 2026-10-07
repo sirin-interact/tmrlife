@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowUpRightIcon, SproutIcon } from 'lucide-react';
 import { Link } from 'react-router';
 
 import type { Trend } from '@/api/types';
@@ -42,10 +41,7 @@ function EmptyNotice({ kind, trend }: { kind: Exclude<EmptyKind, null>; trend: T
         </CardContent>
         <CardFooter>
           <Button asChild size="lg" className="w-full">
-            <Link to="/talk">
-              {TREND_TEXT.startTalking}
-              <ArrowUpRightIcon aria-hidden="true" />
-            </Link>
+            <Link to="/talk">{TREND_TEXT.startTalking}</Link>
           </Button>
         </CardFooter>
       </Card>
@@ -99,7 +95,6 @@ export function TrendPage() {
 
       <header className="journal-page-heading">
         <div>
-          <p className="journal-eyebrow">{TREND_TEXT.eyebrow}</p>
           <h1>{TREND_TEXT.title}</h1>
           <p className="journal-page-lead">{TREND_TEXT.lead}</p>
           {data !== undefined && (
@@ -109,9 +104,6 @@ export function TrendPage() {
             </p>
           )}
         </div>
-        <span className="journal-heading-icon" aria-hidden="true">
-          <SproutIcon />
-        </span>
       </header>
 
       {trend.isPending && (

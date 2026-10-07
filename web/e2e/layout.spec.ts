@@ -23,22 +23,31 @@ test('작은 폰부터 데스크톱까지 주요 화면과 메뉴가 가로로 �
   }
 });
 
-test('동작 줄이기를 존중하고 질문을 바꾸어도 주요 동작을 유지한다', async ({ page }) => {
+test('처음 화면의 줄은 어디를 눌러도 그 화면으로 간다', async ({ page }) => {
+  await logIn(page, DEMO_EMAIL, DEMO_PASSWORD);
+  // 링크의 이름은 짧게 두고 누르는 자리만 줄 전체로 넓혔다. 글자가 없는 오른쪽 끝을 눌러도 가야 한다.
+  const row = page.getByRole('listitem').filter({ hasText: '일기장 보기' });
+  const box = await row.boundingBox();
+  if (box === null) throw new Error('일기장 줄이 화면에 없다');
+  await row.click({ position: { x: box.width - 24, y: box.height / 2 } });
+  await expect(page).toHaveURL(/\/diary/);
+});
+
+test('동작 줄이기를 켜면 대화 화면의 구슬이 움직이지 않는다', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await logIn(page, DEMO_EMAIL, DEMO_PASSWORD);
-  const prompt = page.getByRole('region', { name: '오늘을 꺼내는 작은 질문' });
-  await expect(prompt).toContainText('오늘, 마음에 가장 오래 남은 순간은 무엇인가요?');
-  await page.getByRole('button', { name: '다른 질문 보기' }).click();
-  await expect(prompt).toContainText('오늘의 나에게 한마디를 건넨다면 뭐라고 할까요?');
-  await expect(page.getByRole('link', { name: '오늘 이야기하기' })).toBeVisible();
+  await page.getByRole('link', { name: '오늘 이야기하기' }).click();
+  await expect(page).toHaveURL('/talk');
+  const orb = page.locator('.orb');
+  await expect(orb).toBeVisible();
   await expect
     .poll(() =>
-      page
-        .locator('.garden-sphere')
-        .evaluate(
-          (element) =>
-            element.getAnimations().filter((animation) => animation.playState === 'running').length,
-        ),
+      orb.evaluate(
+        (element) =>
+          element
+            .getAnimations({ subtree: true })
+            .filter((animation) => animation.playState === 'running').length,
+      ),
     )
     .toBe(0);
 });
