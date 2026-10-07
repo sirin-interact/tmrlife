@@ -78,7 +78,7 @@ export const REFLECT_QUESTION = '오늘 무슨 일 있었어요?';
 export const DIRECT_ASK = '혹시 죽고 싶다는 생각도 들어요?';
 
 /** 죽고 싶다는 생각이나 자해를 직접 말했을 때의 첫 응답. 미리 써 둔 문구 그대로 나간다. */
-export const CRISIS_REPLY = '말해줘서 고마워요. 그런 마음을 혼자 안고 있었네요.';
+export const CRISIS_REPLY = '말해줘서 고마워요. 지금 바로 이야기 들어줄 사람이 있어요.';
 
 /** 화면 가운데의 자막. 지금 주고받는 한 마디만 있다. */
 export const caption = (page: Page): Locator =>
