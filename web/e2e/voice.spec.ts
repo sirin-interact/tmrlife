@@ -29,16 +29,21 @@ const FIRST_HEARD = '오늘은 동네 도서관에 다녀왔어';
  */
 async function useSyntheticMicrophone(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    navigator.mediaDevices.getUserMedia = async () => {
-      const context = new AudioContext();
-      const tone = context.createOscillator();
-      tone.frequency.value = 440;
-      const destination = context.createMediaStreamDestination();
-      tone.connect(destination);
-      tone.start();
-      await context.resume();
-      return destination.stream;
-    };
+    // WebKit의 mediaDevices 래퍼에 직접 대입한 메서드는 유지되지 않는다.
+    // 프로토타입에서 바꾸어 실제 기기의 마이크 권한을 요청하지 않게 한다.
+    Object.defineProperty(MediaDevices.prototype, 'getUserMedia', {
+      configurable: true,
+      value: async function syntheticGetUserMedia() {
+        const context = new AudioContext();
+        const tone = context.createOscillator();
+        tone.frequency.value = 440;
+        const destination = context.createMediaStreamDestination();
+        tone.connect(destination);
+        tone.start();
+        await context.resume();
+        return destination.stream;
+      },
+    });
   });
 }
 
@@ -50,11 +55,14 @@ test('구슬을 누르면 마이크가 열리고, 알아들은 말로 답이 오
   await page.getByRole('link', { name: '오늘 이야기하기' }).click();
   await expect(page).toHaveURL('/talk');
   await expect(caption(page)).toContainText(OPENING);
+  // 브라우저가 대역을 거두었으면 실제 마이크를 누르기 전에 실패시킨다.
+  expect(await page.evaluate(() => navigator.mediaDevices.getUserMedia.name)).toBe(
+    'syntheticGetUserMedia',
+  );
 
   await test.step('음성을 쓸 수 있으면 구슬이 시작 버튼이 된다', async () => {
     await expect(page.getByText('구슬을 누르면 이야기를 시작해요')).toBeVisible();
-    // 구슬은 늘 숨 쉬듯 움직인다. 자리가 멈추기를 기다리는 검사는 끝나지 않으므로 건너뛴다. 사람의 손가락에는 문제가 없다.
-    await page.getByRole('button', { name: '이야기 시작하기' }).click({ force: true });
+    await page.getByRole('button', { name: '이야기 시작하기' }).click();
     await expect(page.getByText('듣고 있어요')).toBeVisible();
   });
 

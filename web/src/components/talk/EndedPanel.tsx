@@ -37,7 +37,7 @@ export function EndedPanel({ ended, diaryReady, onTalkAgain }: EndedPanelProps) 
   return (
     <section
       aria-labelledby="talk-ended-title"
-      className="flex w-full max-w-sm flex-col gap-4 self-center py-6 text-center"
+      className="talk-ended-panel flex w-full max-w-sm flex-col gap-4 self-center py-6 text-center"
     >
       <h2
         id="talk-ended-title"

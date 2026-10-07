@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ArrowLeftIcon, CheckIcon, PenLineIcon } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 
@@ -14,6 +15,7 @@ import { diaryQueryOptions, useDeleteDay, useSaveDiary } from '@/diary/queries';
 import { stateValue } from '@/lib/locationState';
 import { formatRecordDate, formatRecordDateShort, isRecordDate, monthOf } from '@/lib/recordDate';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import '@/styles/journal.css';
 
 interface DiaryEditorProps {
   date: RecordDate;
@@ -96,7 +98,7 @@ function DiaryEditor({
       onSubmit={handleSubmit}
       noValidate
       aria-busy={save.isPending}
-      className="flex flex-col gap-3"
+      className="journal-editor flex flex-col gap-3"
     >
       <label htmlFor={inputId} className="sr-only">
         {DIARY_TEXT.editorLabel}
@@ -110,7 +112,7 @@ function DiaryEditor({
         aria-invalid={fieldError !== undefined}
         aria-describedby={fieldError === undefined ? noteId : `${errorId} ${noteId}`}
         // 글자 크기를 16px 아래로 내리지 않는다. 더 작으면 iOS가 입력란에 초점이 갈 때 화면을 확대한다.
-        className="field-sizing-content min-h-72 w-full rounded-2xl border border-input bg-card px-5 py-4 text-base leading-loose text-foreground aria-invalid:border-destructive"
+        className="journal-writing-paper field-sizing-content min-h-72 w-full rounded-2xl border border-input bg-card px-5 py-4 text-base leading-loose text-foreground aria-invalid:border-destructive"
       />
       <FieldError id={errorId} message={fieldError} />
       <p id={noteId} className="text-sm text-muted-foreground">
@@ -271,18 +273,20 @@ function DiaryForDate({ date }: { date: RecordDate }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="journal-page journal-detail-page">
       <title>{`${formatRecordDateShort(date)}의 일기 · 내일`}</title>
-      <div className="flex flex-col gap-1">
+      <header className="journal-detail-heading">
         <p className="text-sm text-muted-foreground">
-          <Link to={`/diary?month=${monthOf(date)}`} className="underline underline-offset-4">
+          <Link to={`/diary?month=${monthOf(date)}`} className="journal-back-link">
+            <ArrowLeftIcon aria-hidden="true" />
             {DIARY_TEXT.backToList}
           </Link>
         </p>
-        <h1 className="text-2xl leading-snug font-semibold">
+        <p className="journal-eyebrow">{DIARY_TEXT.eyebrow}</p>
+        <h1>
           <time dateTime={date}>{formatRecordDate(date)}</time>
         </h1>
-      </div>
+      </header>
 
       {diary.isPending && (
         <p role="status" className="animate-appear-late text-muted-foreground">
@@ -319,7 +323,7 @@ function DiaryForDate({ date }: { date: RecordDate }) {
       )}
 
       {data === null && !isEditing && (
-        <div className="flex flex-col gap-4">
+        <div className="journal-empty flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <h2 className="text-lg font-semibold">{DIARY_TEXT.noDiaryTitle}</h2>
             <p className="text-muted-foreground">{DIARY_TEXT.noDiaryBody}</p>
@@ -356,11 +360,16 @@ function DiaryForDate({ date }: { date: RecordDate }) {
       )}
 
       {data != null && !isEditing && (
-        <article className="flex flex-col gap-4">
-          <p className="rounded-2xl border bg-card px-5 py-5 leading-loose whitespace-pre-wrap">
-            {data.text}
-          </p>
+        <article className="journal-article">
+          <div className="journal-paper">
+            <span className="journal-paper-label">
+              <CheckIcon aria-hidden="true" />
+              {DIARY_TEXT.confirmedAt}
+            </span>
+            <p className="journal-paper-text">{data.text}</p>
+          </div>
           <Button type="button" variant="outline" onClick={startEditing}>
+            <PenLineIcon aria-hidden="true" />
             {DIARY_TEXT.edit}
           </Button>
         </article>

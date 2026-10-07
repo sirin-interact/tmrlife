@@ -17,16 +17,9 @@ interface CaptionProps {
 
 function ThinkingDots() {
   return (
-    <div aria-hidden="true" className="flex items-center gap-1.5 py-2">
+    <div aria-hidden="true" className="talk-thinking">
       {[0, 1, 2].map((dot) => (
-        <span
-          key={dot}
-          className={cn(
-            'size-2 animate-pulse rounded-full bg-muted-foreground',
-            dot === 1 && '[animation-delay:200ms]',
-            dot === 2 && '[animation-delay:400ms]',
-          )}
-        />
+        <span key={dot} className="talk-thinking__dot" />
       ))}
     </div>
   );
@@ -42,13 +35,10 @@ export function Caption({ messages, partial, thinking, canRetry, onRetry }: Capt
   const { user, ai } = latestExchange(messages);
 
   return (
-    <section
-      aria-label={TALK_TEXT.captionLabel}
-      className="flex min-h-0 w-full max-w-prose flex-col items-center gap-3 overflow-y-auto overscroll-contain px-2 text-center"
-    >
+    <section aria-label={TALK_TEXT.captionLabel} className="talk-caption">
       {partial !== null ? (
         // 아직 확정되지 않은 말이라 옅게 두고, 말이 이어지고 있다는 뜻으로 줄임표를 붙인다.
-        <p className="line-clamp-3 text-base leading-relaxed text-muted-foreground opacity-80">
+        <p className="talk-caption__user talk-caption__partial">
           <span className="sr-only">
             {TALK_TEXT.speakerUser} ({TALK_TEXT.partialLabel}):{' '}
           </span>
@@ -57,13 +47,8 @@ export function Caption({ messages, partial, thinking, canRetry, onRetry }: Capt
         </p>
       ) : (
         user !== null && (
-          <div className="flex flex-col items-center gap-1">
-            <p
-              className={cn(
-                'line-clamp-3 text-base leading-relaxed text-muted-foreground',
-                user.delivery === 'sending' && 'opacity-70',
-              )}
-            >
+          <div key={user.key} className="talk-caption__exchange flex flex-col items-center gap-1">
+            <p className={cn('talk-caption__user', user.delivery === 'sending' && 'opacity-70')}>
               <span className="sr-only">{TALK_TEXT.speakerUser}: </span>
               {user.text}
               {user.delivery === 'sending' && (
@@ -89,7 +74,7 @@ export function Caption({ messages, partial, thinking, canRetry, onRetry }: Capt
         )
       )}
       {ai !== null && (
-        <p className="text-2xl leading-snug font-medium text-pretty whitespace-pre-wrap">
+        <p key={ai.key} className="talk-caption__answer">
           <span className="sr-only">{TALK_TEXT.speakerAi}: </span>
           {ai.text}
         </p>

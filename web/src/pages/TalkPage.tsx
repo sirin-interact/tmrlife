@@ -24,6 +24,7 @@ import { formatRecordDateShort } from '@/lib/recordDate';
 import { cn } from '@/lib/utils';
 import type { ConversationState } from '@/talk/conversationState';
 import { useConversation } from '@/talk/useConversation';
+import '@/styles/talk.css';
 
 /**
  * 소리 없이 글로만 답이 왔을 때 구슬이 "말하는" 모양으로 있는 시간. 읽는 데 걸리는 만큼이다.
@@ -154,22 +155,18 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="talk-page" data-has-resources={state.resources !== null}>
       <title>이야기하기 · 내일</title>
 
       {/* 앱의 머리말은 이 화면에서 접힌다. 처음으로 돌아가는 길과 "도움이 필요할 때"는 여기서 같은 자리에 둔다. */}
-      <header className="flex items-center justify-between gap-2">
-        <Link
-          to="/"
-          aria-label={TALK_TEXT.back}
-          className="-ml-3 inline-flex size-touch shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
-        >
+      <header className="talk-header">
+        <Link to="/" aria-label={TALK_TEXT.back} className="talk-header__back">
           <ChevronLeftIcon aria-hidden="true" className="size-6" />
         </Link>
-        <div className="flex min-w-0 flex-col items-center text-sm leading-snug">
-          <h1 className="font-semibold">{TALK_TEXT.title}</h1>
+        <div className="talk-header__title">
+          <h1>{TALK_TEXT.title}</h1>
           {state.recordDate !== null && (
-            <p className="text-muted-foreground">
+            <p>
               <time dateTime={state.recordDate}>{formatRecordDateShort(state.recordDate)}</time>
             </p>
           )}
@@ -178,10 +175,7 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
         <NavLink
           to="/help"
           className={({ isActive }) =>
-            cn(
-              '-mr-2 inline-flex min-h-touch shrink-0 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-muted-foreground hover:text-foreground',
-              isActive && 'font-semibold text-foreground',
-            )
+            cn('talk-header__help', isActive && 'font-semibold text-foreground')
           }
         >
           <LifeBuoyIcon aria-hidden="true" className="size-4" />
@@ -190,7 +184,10 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
       </header>
 
       {state.resources !== null && (
-        <section aria-labelledby="talk-resources-title" className="flex flex-col gap-2 pt-3">
+        <section
+          aria-labelledby="talk-resources-title"
+          className="talk-resources flex flex-col gap-2"
+        >
           <h2 id="talk-resources-title" className="text-sm font-semibold">
             {TALK_TEXT.resourcesTitle}
           </h2>
@@ -201,10 +198,7 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
       {ended === null && (
         <>
           {/* 연결 상태와 잠깐의 알림. 나타날 때 화면 낭독기가 읽어 준다. */}
-          <div
-            role="status"
-            className="flex flex-col items-center gap-1 pt-3 text-center text-sm text-muted-foreground"
-          >
+          <div role="status" className="talk-status">
             {statusLine !== null && <p>{statusLine}</p>}
             {state.notice !== null && <p>{noticeText(state.notice)}</p>}
           </div>
@@ -222,12 +216,12 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
       )}
 
       {ended !== null ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto">
-          <Orb mode="off" className="size-24 shrink-0" />
+        <div className="talk-ended">
+          <Orb mode="off" className="talk-ended__orb" />
           <EndedPanel ended={ended} diaryReady={state.diaryReady} onTalkAgain={onTalkAgain} />
         </div>
       ) : transcriptOpen ? (
-        <div className="-mx-2 min-h-0 flex-1 overflow-y-auto overscroll-contain px-2">
+        <div className="talk-transcript">
           <MessageList
             messages={state.messages}
             thinking={state.awaitingReply}
@@ -236,13 +230,14 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
           />
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 py-4">
-          <Orb
-            ref={orbRef}
-            mode={orbMode}
-            action={orbAction}
-            className="size-40 shrink-0 sm:size-48"
-          />
+        <div className="talk-stage">
+          <div className="talk-stage__orb">
+            <Orb ref={orbRef} mode={orbMode} action={orbAction} />
+          </div>
+          <div className="talk-stage__eyebrow" aria-hidden="true">
+            <span />
+            {TALK_TEXT.speakerAi}
+          </div>
           <Caption
             messages={state.messages}
             partial={state.partial}
@@ -250,9 +245,7 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
             canRetry={canSend}
             onRetry={talk.retry}
           />
-          {offerVoice && (
-            <p className="-mt-4 text-sm text-muted-foreground">{TALK_TEXT.orbStartHint}</p>
-          )}
+          {offerVoice && <p className="talk-stage__hint">{TALK_TEXT.orbStartHint}</p>}
         </div>
       )}
 
@@ -268,7 +261,7 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
       </div>
 
       {ended === null && (
-        <div className="flex flex-col gap-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="talk-controls">
           {confirmingEnd && (
             <ConfirmPanel
               title={TALK_TEXT.endConfirmTitle}
@@ -280,36 +273,58 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
               <p>{TALK_TEXT.endConfirmBody}</p>
             </ConfirmPanel>
           )}
-          {/* 음성으로 이야기하는 중에도 글을 보낼 수 있다. 키보드 버튼으로 열면 줄 위에 글 쓰는 자리가 생긴다. */}
-          {voiceOn && keyboardOpen && <Composer canSend={canSend} onSend={send} />}
-          {/* 맨 아래 한 줄: 지난 말 보기, 가운데(듣는 중 표시 또는 글 쓰는 자리), 끝내기. */}
-          <div className="flex items-end gap-2">
+          {/* 입력란은 독립된 한 줄을 써서 작은 화면에서도 충분한 너비를 확보한다. */}
+          {voiceOn ? (
+            <>
+              {keyboardOpen && <Composer canSend={canSend} onSend={send} />}
+              <div className="talk-voice-status" data-listening={listeningNow}>
+                <span className="talk-wave" aria-hidden="true">
+                  {[0, 1, 2, 3, 4].map((bar) => (
+                    <span key={bar} />
+                  ))}
+                </span>
+                <AudioLinesIcon aria-hidden="true" className="sr-only" />
+                <span>
+                  {listeningNow
+                    ? TALK_TEXT.listening
+                    : voiceReady
+                      ? TALK_TEXT.pausedHint
+                      : TALK_TEXT.micStarting}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="talk-controls__input-row">
+              <Composer canSend={canSend} onSend={send} className="flex-1" />
+              {state.voiceAvailable && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={TALK_TEXT.voiceStart}
+                  onClick={startVoice}
+                  disabled={state.ending}
+                  className="talk-control talk-control--mic"
+                >
+                  <MicIcon aria-hidden="true" />
+                </Button>
+              )}
+            </div>
+          )}
+          <div className="talk-controls__toolbar">
             <Button
               type="button"
-              variant="outline"
-              size="icon"
+              variant="ghost"
               aria-label={TALK_TEXT.logLabel}
               aria-pressed={transcriptOpen}
               onClick={() => setTranscriptOpen((open) => !open)}
-              className={cn('rounded-full', transcriptOpen && 'bg-accent text-accent-foreground')}
+              className="talk-control talk-control--label"
             >
               <MessageSquareTextIcon aria-hidden="true" />
+              <span>{TALK_TEXT.logLabel}</span>
             </Button>
-            {voiceOn ? (
-              <>
-                <div className="flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-input bg-card px-4 text-sm text-muted-foreground">
-                  <AudioLinesIcon
-                    aria-hidden="true"
-                    className={cn('size-5 shrink-0', listeningNow && 'text-primary')}
-                  />
-                  <span className="truncate">
-                    {listeningNow
-                      ? TALK_TEXT.listening
-                      : voiceReady
-                        ? TALK_TEXT.pausedHint
-                        : TALK_TEXT.micStarting}
-                  </span>
-                </div>
+            {voiceOn && (
+              <div className="talk-controls__voice-actions">
                 <Button
                   type="button"
                   variant="outline"
@@ -317,7 +332,7 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
                   aria-label={TALK_TEXT.typeInstead}
                   aria-pressed={keyboardOpen}
                   onClick={() => setKeyboardOpen((open) => !open)}
-                  className={cn('rounded-full', keyboardOpen && 'bg-accent text-accent-foreground')}
+                  className="talk-control"
                 >
                   <KeyboardIcon aria-hidden="true" />
                 </Button>
@@ -327,41 +342,24 @@ function TalkSession({ onTalkAgain }: TalkSessionProps) {
                   size="icon"
                   aria-label={TALK_TEXT.voiceStop}
                   onClick={stopVoice}
-                  className="rounded-full"
+                  className="talk-control"
                 >
                   <MicOffIcon aria-hidden="true" />
                 </Button>
-              </>
-            ) : (
-              <>
-                <Composer canSend={canSend} onSend={send} className="flex-1" />
-                {state.voiceAvailable && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label={TALK_TEXT.voiceStart}
-                    onClick={startVoice}
-                    disabled={state.ending}
-                    className="rounded-full"
-                  >
-                    <MicIcon aria-hidden="true" />
-                  </Button>
-                )}
-              </>
+              </div>
             )}
             {/* 끝내기는 언제나 보인다. 연결이 끊겨 있어도 누를 수 있고, 다시 이어지는 대로 서버에 전한다. */}
             <Button
               ref={endButtonRef}
               type="button"
-              variant="outline"
-              size="icon"
+              variant="ghost"
               aria-label={TALK_TEXT.end}
               onClick={() => setConfirmingEnd(true)}
               disabled={state.ending || confirmingEnd}
-              className="rounded-full"
+              className="talk-control talk-control--label talk-control--end"
             >
               <XIcon aria-hidden="true" />
+              <span>{TALK_TEXT.end}</span>
             </Button>
           </div>
         </div>

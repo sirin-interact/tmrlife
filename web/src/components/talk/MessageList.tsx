@@ -18,17 +18,9 @@ interface MessageListProps {
 function ThinkingIndicator() {
   return (
     <li aria-hidden="true" className="flex justify-start">
-      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border bg-card px-4 py-4">
+      <div className="talk-thinking talk-message talk-message--ai">
         {[0, 1, 2].map((dot) => (
-          <span
-            key={dot}
-            aria-hidden="true"
-            className={cn(
-              'size-2 animate-pulse rounded-full bg-muted-foreground',
-              dot === 1 && '[animation-delay:200ms]',
-              dot === 2 && '[animation-delay:400ms]',
-            )}
-          />
+          <span key={dot} aria-hidden="true" className="talk-thinking__dot" />
         ))}
       </div>
     </li>
@@ -48,20 +40,21 @@ export function MessageList({ messages, thinking, canRetry, onRetry }: MessageLi
   }, [messages.length, thinking]);
 
   return (
-    <ol aria-label={TALK_TEXT.logLabel} className="flex flex-col gap-3 py-4">
+    <ol aria-label={TALK_TEXT.logLabel} className="talk-messages">
       {messages.map((message) => {
         const mine = message.speaker === 'user';
         return (
           <li
             key={message.key}
-            className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}
+            className={cn(
+              'talk-message-entry flex flex-col gap-1',
+              mine ? 'items-end' : 'items-start',
+            )}
           >
             <div
               className={cn(
-                'max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed whitespace-pre-wrap',
-                mine
-                  ? 'rounded-br-md bg-primary text-primary-foreground'
-                  : 'rounded-bl-md border bg-card text-card-foreground',
+                'talk-message',
+                mine ? 'talk-message--user' : 'talk-message--ai',
                 message.delivery === 'sending' && 'opacity-70',
               )}
             >

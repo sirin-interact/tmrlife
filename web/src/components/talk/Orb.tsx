@@ -2,7 +2,7 @@ import type { Ref } from 'react';
 
 import { cn } from '@/lib/utils';
 
-/** 구슬이 지금 무엇을 하고 있는지. 모양과 움직임은 index.css의 .orb 규칙이 맡는다. */
+/** 구슬이 지금 무엇을 하고 있는지. 모양과 움직임은 talk.css의 .orb 규칙이 맡는다. */
 export type OrbMode =
   /** 사용자의 말을 기다린다 */
   | 'idle'
@@ -35,6 +35,23 @@ interface OrbProps {
  * 누를 일이 있을 때(이야기 시작, 다 말했어요, 잠깐 멈추기)는 버튼이 되고 그 뜻이 이름이 된다.
  */
 export function Orb({ mode, action, ref, className }: OrbProps) {
+  const layers = (
+    <span className="orb__scene" aria-hidden="true">
+      <span className="orb__halo" />
+      <span className="orb__orbit orb__orbit--outer" />
+      <span className="orb__orbit orb__orbit--inner" />
+      <span className="orb__ripple orb__ripple--one" />
+      <span className="orb__ripple orb__ripple--two" />
+      <span className="orb__body">
+        <span className="orb__light" />
+        <span className="orb__current orb__current--one" />
+        <span className="orb__current orb__current--two" />
+        <span className="orb__shine" />
+      </span>
+      <span className="orb__satellite" />
+    </span>
+  );
+
   if (action) {
     return (
       <button
@@ -44,7 +61,9 @@ export function Orb({ mode, action, ref, className }: OrbProps) {
         data-mode={mode}
         onClick={action.onPress}
         className={cn('orb', className)}
-      />
+      >
+        {layers}
+      </button>
     );
   }
   return (
@@ -53,6 +72,8 @@ export function Orb({ mode, action, ref, className }: OrbProps) {
       aria-hidden="true"
       data-mode={mode}
       className={cn('orb', className)}
-    />
+    >
+      {layers}
+    </div>
   );
 }

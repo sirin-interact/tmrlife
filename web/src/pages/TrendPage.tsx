@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ArrowUpRightIcon, SproutIcon } from 'lucide-react';
 import { Link } from 'react-router';
 
 import type { Trend } from '@/api/types';
@@ -15,6 +16,7 @@ import { useNow } from '@/lib/useNow';
 import { windowLength } from '@/trend/days';
 import { emptyKindOf, type EmptyKind } from '@/trend/emptyState';
 import { trendQueryOptions } from '@/trend/queries';
+import '@/styles/journal.css';
 
 /** 하루의 근거 화면으로 가는 주소. 날짜를 누르면 그날 무슨 말에서 그 점이 나왔는지 볼 수 있다. */
 function dayHref(date: string): string {
@@ -27,7 +29,7 @@ function EmptyNotice({ kind, trend }: { kind: Exclude<EmptyKind, null>; trend: T
   if (kind === 'no_records' || kind === 'window_empty') {
     const fresh = kind === 'no_records';
     return (
-      <Card>
+      <Card className="journal-trend-empty">
         <CardHeader>
           <h2 className="text-xl leading-snug font-semibold">
             {fresh ? TREND_TEXT.noRecordsTitle : TREND_TEXT.windowEmptyTitle}
@@ -40,7 +42,10 @@ function EmptyNotice({ kind, trend }: { kind: Exclude<EmptyKind, null>; trend: T
         </CardContent>
         <CardFooter>
           <Button asChild size="lg" className="w-full">
-            <Link to="/talk">{TREND_TEXT.startTalking}</Link>
+            <Link to="/talk">
+              {TREND_TEXT.startTalking}
+              <ArrowUpRightIcon aria-hidden="true" />
+            </Link>
           </Button>
         </CardFooter>
       </Card>
@@ -49,7 +54,7 @@ function EmptyNotice({ kind, trend }: { kind: Exclude<EmptyKind, null>; trend: T
 
   const insufficient = kind === 'insufficient';
   return (
-    <Card>
+    <Card className="journal-trend-empty">
       <CardHeader>
         <h2 className="text-xl leading-snug font-semibold">
           {insufficient ? TREND_TEXT.insufficientTitle : TREND_TEXT.baselinePendingTitle}
@@ -89,18 +94,24 @@ export function TrendPage() {
     data !== undefined && data.as_of !== recordDateOf(now, me.data?.user.timezone);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="journal-page journal-trend-page">
       <title>{TREND_TEXT.pageTitle}</title>
 
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl leading-snug font-semibold">{TREND_TEXT.title}</h1>
-        <p className="text-muted-foreground">{TREND_TEXT.lead}</p>
-        {data !== undefined && (
-          <p className="text-sm text-muted-foreground">
-            <time dateTime={data.as_of}>{TREND_TEXT.asOf(formatRecordDate(data.as_of))}</time>
-            {todayPending && ` ${TREND_TEXT.asOfNote}`}
-          </p>
-        )}
+      <header className="journal-page-heading">
+        <div>
+          <p className="journal-eyebrow">{TREND_TEXT.eyebrow}</p>
+          <h1>{TREND_TEXT.title}</h1>
+          <p className="journal-page-lead">{TREND_TEXT.lead}</p>
+          {data !== undefined && (
+            <p className="journal-as-of">
+              <time dateTime={data.as_of}>{TREND_TEXT.asOf(formatRecordDate(data.as_of))}</time>
+              {todayPending && ` ${TREND_TEXT.asOfNote}`}
+            </p>
+          )}
+        </div>
+        <span className="journal-heading-icon" aria-hidden="true">
+          <SproutIcon />
+        </span>
       </header>
 
       {trend.isPending && (
@@ -131,7 +142,13 @@ export function TrendPage() {
           {empty !== null && <EmptyNotice kind={empty} trend={data} />}
 
           {/* 기록이 모자라도 달력은 그린다. 빈 달력과 점 읽는 법이 함께 있으면 "아직 없다"가 고장처럼 보이지 않는다. */}
-          <section className="flex flex-col gap-5 rounded-2xl border bg-card px-4 py-6 sm:px-5">
+          <section className="journal-trend-card">
+            <div className="journal-section-heading">
+              <h2>{TREND_TEXT.calendarTitle}</h2>
+              <span>
+                {data.from.slice(5).replace('-', '.')} — {data.to.slice(5).replace('-', '.')}
+              </span>
+            </div>
             <DotCalendar
               rows={data.rows}
               // 평소가 없거나 기록이 모자란 동안에는 견주는 말을 붙이지 않는다. 일수는 그대로 보여 준다.
@@ -141,7 +158,7 @@ export function TrendPage() {
             <DotLegend />
           </section>
 
-          <p className="text-sm text-muted-foreground">{TREND_TEXT.notATest}</p>
+          <p className="journal-trend-note">{TREND_TEXT.notATest}</p>
           <MedicalNotice />
         </>
       )}

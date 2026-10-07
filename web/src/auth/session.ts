@@ -82,11 +82,13 @@ export function useLogout() {
   return useMutation({
     mutationFn: logout,
     onSuccess: () => {
-      void navigate('/login', { replace: true, state: null });
       // 로그아웃 전에 출발한 조회가 늦게 도착해서 로그인 상태를 되살리지 않게 취소를 먼저 건다.
-      // 기다리지는 않는다. 기다리면 아래 두 줄이 위 이동과 다른 박자가 된다.
+      // 기다리지는 않는다. 기다리면 세션을 비우는 일과 이동이 다른 박자가 된다.
       void queryClient.cancelQueries({ queryKey: meQueryKey });
       queryClient.setQueryData(meQueryKey, null);
+      // 경로 갱신이 transition으로 밀리면 RequireAuth가 이전 주소를 다시 담는다.
+      // 비운 세션과 로그인 경로를 같은 렌더에서 읽도록 이동을 즉시 반영한다.
+      void navigate('/login', { replace: true, state: null, flushSync: true });
       // 남은 조회 결과에는 방금 로그아웃한 사람의 기록이 들어 있다. 같은 기기를 다른 사람이 이어서 쓸 수 있다.
       queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== meQueryKey[0] });
     },

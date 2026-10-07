@@ -1,3 +1,6 @@
+import { ArrowRightIcon, LeafIcon } from 'lucide-react';
+import { BrandScene } from '@/components/BrandScene';
+import '@/styles/auth.css';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
@@ -118,155 +121,164 @@ export function SignupPage() {
   ].filter((message) => message !== undefined);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="auth-layout auth-layout--signup">
       <title>가입하기 · 내일</title>
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl leading-snug font-semibold">내일을 시작해요</h1>
-        <p className="text-muted-foreground">오늘을 말하면, 내일이 보여요.</p>
-      </div>
+      <BrandScene />
+      <div className="auth-form-panel">
+        <div className="auth-heading">
+          <span className="auth-heading__eyebrow">첫 장을 펴요</span>
+          <h1 className="text-2xl leading-snug font-semibold">내일을 시작해요</h1>
+          <p className="text-muted-foreground">오늘을 말하면, 내일이 보여요.</p>
+        </div>
 
-      <Card>
-        <form
-          onSubmit={(event) =>
-            void handleSubmit(onValid, () => setSummary(FORM_INVALID_MESSAGE))(event)
-          }
-          noValidate
-          aria-busy={signup.isPending}
-          className="flex flex-col gap-6"
-        >
-          <CardHeader>
-            <h2 className="text-xl leading-snug font-semibold">가입하기</h2>
-          </CardHeader>
+        <Card className="auth-card">
+          <form
+            onSubmit={(event) =>
+              void handleSubmit(onValid, () => setSummary(FORM_INVALID_MESSAGE))(event)
+            }
+            noValidate
+            aria-busy={signup.isPending}
+            className="flex flex-col gap-6"
+          >
+            <CardHeader>
+              <h2 className="text-xl leading-snug font-semibold">가입하기</h2>
+            </CardHeader>
 
-          <CardContent className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="signup-email">이메일</Label>
-              <Input
-                id="signup-email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                spellCheck={false}
-                required
-                aria-invalid={errors.email !== undefined}
-                aria-describedby={describedBy(errors.email && 'signup-email-error')}
-                {...register('email')}
-              />
-              <FieldError id="signup-email-error" message={errors.email?.message} />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="signup-password">비밀번호</Label>
-              <PasswordInput
-                id="signup-password"
-                autoComplete="new-password"
-                required
-                aria-invalid={errors.password !== undefined}
-                aria-describedby={describedBy(
-                  rules && 'signup-password-hints',
-                  errors.password && 'signup-password-error',
-                )}
-                {...register('password')}
-              />
-              {rules && (
-                <PasswordHints
-                  id="signup-password-hints"
-                  password={password}
-                  email={email}
-                  rules={rules.password}
+            <CardContent className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="signup-email">이메일</Label>
+                <Input
+                  id="signup-email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  required
+                  aria-invalid={errors.email !== undefined}
+                  aria-describedby={describedBy(errors.email && 'signup-email-error')}
+                  {...register('email')}
                 />
-              )}
-              <FieldError id="signup-password-error" message={errors.password?.message} />
-            </div>
+                <FieldError id="signup-email-error" message={errors.email?.message} />
+              </div>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="signup-display-name">
-                부를 이름 <span className="font-normal text-muted-foreground">(선택)</span>
-              </Label>
-              <Input
-                id="signup-display-name"
-                autoComplete="nickname"
-                aria-invalid={errors.displayName !== undefined}
-                aria-describedby={describedBy(
-                  'signup-display-name-hint',
-                  errors.displayName && 'signup-display-name-error',
-                )}
-                {...register('displayName')}
-              />
-              <p id="signup-display-name-hint" className="text-sm text-muted-foreground">
-                내일이 인사할 때 부를 이름이에요. 비워 두어도 괜찮아요.
-              </p>
-              <FieldError id="signup-display-name-error" message={errors.displayName?.message} />
-            </div>
-
-            {requirements.isPending && (
-              <p role="status" className="text-muted-foreground">
-                {CONSENT_TEXT.loading}
-              </p>
-            )}
-
-            {requirements.isError && !rules && (
-              <Alert variant="destructive">
-                <AlertDescription>
-                  <p>{describeError(requirements.error).message}</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={requirements.isFetching}
-                    onClick={() => void requirements.refetch()}
-                  >
-                    다시 불러오기
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {rules && (
-              <Controller
-                control={control}
-                name="agreed"
-                render={({ field, fieldState }) => (
-                  <ConsentFields
-                    consents={rules.consents}
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={fieldState.error?.message}
-                    disabled={signup.isPending}
-                    focusRef={field.ref}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="signup-password">비밀번호</Label>
+                <PasswordInput
+                  id="signup-password"
+                  autoComplete="new-password"
+                  required
+                  aria-invalid={errors.password !== undefined}
+                  aria-describedby={describedBy(
+                    rules && 'signup-password-hints',
+                    errors.password && 'signup-password-error',
+                  )}
+                  {...register('password')}
+                />
+                {rules && (
+                  <PasswordHints
+                    id="signup-password-hints"
+                    password={password}
+                    email={email}
+                    rules={rules.password}
                   />
                 )}
-              />
-            )}
+                <FieldError id="signup-password-error" message={errors.password?.message} />
+              </div>
 
-            {hasUnknownConsent && (
-              <Alert variant="destructive">
-                <AlertDescription>{CONSENT_TEXT.unknownKind}</AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="signup-display-name">
+                  부를 이름 <span className="font-normal text-muted-foreground">(선택)</span>
+                </Label>
+                <Input
+                  id="signup-display-name"
+                  autoComplete="nickname"
+                  aria-invalid={errors.displayName !== undefined}
+                  aria-describedby={describedBy(
+                    'signup-display-name-hint',
+                    errors.displayName && 'signup-display-name-error',
+                  )}
+                  {...register('displayName')}
+                />
+                <p id="signup-display-name-hint" className="text-sm text-muted-foreground">
+                  내일이 인사할 때 부를 이름이에요. 비워 두어도 괜찮아요.
+                </p>
+                <FieldError id="signup-display-name-error" message={errors.displayName?.message} />
+              </div>
 
-          <CardFooter>
-            <FormErrorSummary key={submitCount} message={summary} details={fieldMessages} />
-            <Button type="submit" size="lg" className="w-full" disabled={!canSubmit}>
-              {signup.isPending ? '가입하고 있어요' : '가입하기'}
-            </Button>
-            <MedicalNotice className="text-center" />
-          </CardFooter>
-        </form>
-      </Card>
+              {requirements.isPending && (
+                <p role="status" className="text-muted-foreground">
+                  {CONSENT_TEXT.loading}
+                </p>
+              )}
 
-      <p className="text-center text-muted-foreground">
-        이미 가입하셨나요?{' '}
-        <Link
-          to="/login"
-          state={location.state as unknown}
-          className="inline-flex min-h-touch items-center font-semibold text-link underline underline-offset-4"
-        >
-          로그인
-        </Link>
-      </p>
+              {requirements.isError && !rules && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    <p>{describeError(requirements.error).message}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={requirements.isFetching}
+                      onClick={() => void requirements.refetch()}
+                    >
+                      다시 불러오기
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {rules && (
+                <Controller
+                  control={control}
+                  name="agreed"
+                  render={({ field, fieldState }) => (
+                    <ConsentFields
+                      consents={rules.consents}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={fieldState.error?.message}
+                      disabled={signup.isPending}
+                      focusRef={field.ref}
+                    />
+                  )}
+                />
+              )}
+
+              {hasUnknownConsent && (
+                <Alert variant="destructive">
+                  <AlertDescription>{CONSENT_TEXT.unknownKind}</AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+
+            <CardFooter>
+              <FormErrorSummary key={submitCount} message={summary} details={fieldMessages} />
+              <Button type="submit" size="lg" className="auth-submit w-full" disabled={!canSubmit}>
+                {signup.isPending ? '가입하고 있어요' : '가입하기'}
+                <ArrowRightIcon aria-hidden="true" className="size-4" />
+              </Button>
+              <MedicalNotice className="text-center" />
+            </CardFooter>
+          </form>
+        </Card>
+
+        <p className="auth-switch">
+          이미 가입하셨나요?{' '}
+          <Link
+            to="/login"
+            state={location.state as unknown}
+            className="inline-flex min-h-touch items-center font-semibold text-link underline underline-offset-4"
+          >
+            로그인
+          </Link>
+        </p>
+        <p className="auth-privacy">
+          <LeafIcon aria-hidden="true" className="size-3" />
+          나의 속도로, 편안하게 시작해요
+        </p>
+      </div>
     </div>
   );
 }
