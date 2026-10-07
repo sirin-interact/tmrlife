@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +37,7 @@ func TestLiveSynthesize(t *testing.T) {
 		BaseURL:    envOr("ELEVENLABS_URL", "https://api.elevenlabs.io"),
 		VoiceID:    envOr("ELEVENLABS_VOICE_ID", "hWXqitL3DEOLD49pgNWR"),
 		Model:      envOr("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
+		Speed:      liveSpeed(t),
 		HTTPClient: client,
 		Logger:     slog.New(slog.NewTextHandler(os.Stderr, nil)),
 	})
@@ -61,6 +63,18 @@ func TestLiveSynthesize(t *testing.T) {
 	assert.Equal(t, 0, total%2, "s16le 샘플은 두 바이트씩이다")
 	// 짧은 한 문장이라도 반 초는 넘는다. 24kHz s16le로 반 초는 24,000바이트다.
 	assert.Greater(t, total, voice.OutputSampleRate)
+}
+
+// liveSpeed는 ELEVENLABS_SPEED가 있으면 그 빠르기로 부른다. 공급자가 그 값을 받는지 확인하는 데 쓴다.
+func liveSpeed(t *testing.T) float64 {
+	t.Helper()
+	raw := strings.TrimSpace(os.Getenv("ELEVENLABS_SPEED"))
+	if raw == "" {
+		return 0
+	}
+	speed, err := strconv.ParseFloat(raw, 64)
+	require.NoError(t, err)
+	return speed
 }
 
 func envOr(name, fallback string) string {

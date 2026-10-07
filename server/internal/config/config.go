@@ -313,6 +313,7 @@ func (c Config) LogValue() slog.Value {
 		slog.Float64("stt_mishear_below", float64(c.Voice.MishearBelow)),
 		slog.String("elevenlabs_model", c.Voice.TTSModel),
 		slog.String("elevenlabs_voice_id", c.Voice.VoiceID),
+		slog.Float64("elevenlabs_speed", c.Voice.Speed),
 		slog.Bool("voice_barge_in", c.Voice.BargeIn),
 		slog.Int("diary_job_retries", c.DiaryJob.Retries),
 		slog.Int("analysis_job_retries", c.AnalysisJob.Retries),
@@ -417,6 +418,7 @@ type raw struct {
 	ElevenLabsURL       string `env:"ELEVENLABS_URL" envDefault:"https://api.elevenlabs.io"`
 	ElevenLabsVoiceID   string `env:"ELEVENLABS_VOICE_ID" envDefault:"hWXqitL3DEOLD49pgNWR"`
 	ElevenLabsModel     string `env:"ELEVENLABS_MODEL" envDefault:"eleven_flash_v2_5"`
+	ElevenLabsSpeed     string `env:"ELEVENLABS_SPEED" envDefault:"1.1"`
 	VoiceBargeIn        string `env:"VOICE_BARGE_IN" envDefault:"true"`
 
 	DiaryJobRetries    string `env:"DIARY_JOB_RETRIES" envDefault:"3"`
