@@ -13,6 +13,8 @@ export const TREND_MARK_ORDER: readonly TrendMark[] = [
 export const TREND_TEXT = {
   pageTitle: '변화 추세 · 내일',
   title: '변화 추세',
+  eyebrow: '나의 리듬',
+  calendarTitle: '점으로 돌아보는 나의 날들',
   lead: '대화에서 읽어 낸 마음 신호를 날마다 점으로 찍어 뒀어요.',
   asOf: (date: string) => `${date}까지의 기록이에요.`,
   asOfNote: '오늘 나눈 이야기는 정리가 끝나면 이 달력에 나타나요.',

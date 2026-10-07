@@ -5,6 +5,12 @@ export const DIARY_MAX_LENGTH = 10_000;
 
 export const DIARY_TEXT = {
   listTitle: '일기장',
+  eyebrow: '나의 일기장',
+  listLead: '마음에 남은 하루를 천천히 꺼내 보세요.',
+  entriesTitle: '차곡차곡 쌓인 하루',
+  monthCount: (count: number) => `${count}개의 일기`,
+  emptyMonthLead: '평범한 하루도, 소중한 한 페이지가 돼요.',
+  startTalking: '오늘 이야기하기',
   previousMonth: '이전 달',
   nextMonth: '다음 달',
   calendarLabel: '일기가 있는 날',

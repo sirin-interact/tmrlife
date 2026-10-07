@@ -2,7 +2,7 @@ import type { VitePWAOptions } from 'vite-plugin-pwa';
 
 // 설치 화면과 상태 표시줄 색은 밝은 테마의 배경 토큰(--background)과 같은 값이어야 한다.
 // 값이 어긋나면 앱이 뜨는 순간 색이 튀어 보이므로, 토큰 테스트가 두 값을 함께 확인한다.
-export const THEME_COLOR = '#faf6f0';
+export const THEME_COLOR = '#f8f8f2';
 
 export const pwaOptions: Partial<VitePWAOptions> = {
   // 대화 도중에 화면이 저절로 새로 고쳐지면 안 되므로 자동 갱신(autoUpdate)을 쓰지 않는다.

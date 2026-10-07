@@ -1,5 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from 'lucide-react';
+import {
+  ArrowUpRightIcon,
+  BookOpenIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  SearchIcon,
+} from 'lucide-react';
 import { useId, useState, type FormEvent } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router';
 
@@ -25,6 +31,7 @@ import {
 } from '@/lib/recordDate';
 import { cn } from '@/lib/utils';
 import { useNow } from '@/lib/useNow';
+import '@/styles/journal.css';
 
 const SEARCH_MAX_LENGTH = 100;
 
@@ -55,27 +62,28 @@ interface EntryListProps {
 
 function EntryList({ items, withYear }: EntryListProps) {
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="journal-entries">
       {items.map((item) => (
         <li key={item.date}>
-          <Link
-            to={`/diary/${item.date}`}
-            className="flex flex-col gap-1 rounded-xl border bg-card px-5 py-4 hover:bg-accent hover:text-accent-foreground"
-          >
-            <span className="flex items-center gap-2 text-sm text-muted-foreground">
-              <time dateTime={item.date}>
-                {withYear ? formatRecordDate(item.date) : formatRecordDateShort(item.date)}
-              </time>
-              {item.status === 'draft' && (
-                <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">
-                  {DIARY_TEXT.draftBadge}
-                </span>
-              )}
+          <Link to={`/diary/${item.date}`} className="journal-entry">
+            <span className="journal-entry-day" aria-hidden="true">
+              {item.date.slice(-2)}
             </span>
-            <span className="line-clamp-2 leading-relaxed">
-              {item.snippet ??
-                (item.first_line === '' ? DIARY_TEXT.emptyFirstLine : item.first_line)}
+            <span className="journal-entry-content">
+              <span className="journal-entry-date">
+                <time dateTime={item.date}>
+                  {withYear ? formatRecordDate(item.date) : formatRecordDateShort(item.date)}
+                </time>
+                {item.status === 'draft' && (
+                  <span className="journal-draft-badge">{DIARY_TEXT.draftBadge}</span>
+                )}
+              </span>
+              <span className="journal-entry-excerpt">
+                {item.snippet ??
+                  (item.first_line === '' ? DIARY_TEXT.emptyFirstLine : item.first_line)}
+              </span>
             </span>
+            <ChevronRightIcon className="journal-entry-arrow" aria-hidden="true" />
           </Link>
         </li>
       ))}
@@ -93,7 +101,7 @@ function MonthCalendar({ month, items }: MonthCalendarProps) {
   const byDate = new Map(items.map((item) => [item.date, item]));
 
   return (
-    <table aria-label={DIARY_TEXT.calendarLabel} className="w-full table-fixed text-center">
+    <table aria-label={DIARY_TEXT.calendarLabel} className="journal-month-table">
       <thead>
         <tr>
           {DIARY_TEXT.weekdays.map((weekday) => (
@@ -154,50 +162,68 @@ function MonthView({ month, currentMonth }: { month: string; currentMonth: strin
   const atCurrentMonth = month >= currentMonth;
 
   return (
-    <section aria-labelledby="diary-month-title" className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <Button asChild variant="ghost" size="icon" aria-label={DIARY_TEXT.previousMonth}>
-          <Link to={`/diary?month=${previous}`}>
-            <ChevronLeftIcon aria-hidden="true" />
-          </Link>
-        </Button>
-        <h2 id="diary-month-title" className="text-lg font-semibold" aria-live="polite">
-          {formatMonth(month)}
-        </h2>
-        {atCurrentMonth ? (
-          // 오지 않은 달에는 일기가 없다. 자리는 남겨서 달 이름이 가운데에 머물게 한다.
-          <span className="size-12" />
-        ) : (
-          <Button asChild variant="ghost" size="icon" aria-label={DIARY_TEXT.nextMonth}>
-            <Link to={`/diary?month=${next}`}>
-              <ChevronRightIcon aria-hidden="true" />
+    <section aria-labelledby="diary-month-title" className="journal-month-view">
+      <div className="journal-calendar-card">
+        <div className="journal-month-navigation">
+          <Button asChild variant="ghost" size="icon" aria-label={DIARY_TEXT.previousMonth}>
+            <Link to={`/diary?month=${previous}`}>
+              <ChevronLeftIcon aria-hidden="true" />
             </Link>
           </Button>
-        )}
-      </div>
+          <h2 id="diary-month-title" className="text-lg font-semibold" aria-live="polite">
+            {formatMonth(month)}
+          </h2>
+          {atCurrentMonth ? (
+            // 오지 않은 달에는 일기가 없다. 자리는 남겨서 달 이름이 가운데에 머물게 한다.
+            <span className="size-12" />
+          ) : (
+            <Button asChild variant="ghost" size="icon" aria-label={DIARY_TEXT.nextMonth}>
+              <Link to={`/diary?month=${next}`}>
+                <ChevronRightIcon aria-hidden="true" />
+              </Link>
+            </Button>
+          )}
+        </div>
 
-      {diaries.isPending && (
-        <p role="status" className="animate-appear-late text-muted-foreground">
-          {DIARY_TEXT.loading}
-        </p>
-      )}
-      {diaries.isError && !diaries.data && (
-        <LoadFailed
-          error={diaries.error}
-          retrying={diaries.isFetching}
-          onRetry={() => void diaries.refetch()}
-        />
-      )}
+        {diaries.isPending && (
+          <p role="status" className="animate-appear-late text-muted-foreground">
+            {DIARY_TEXT.loading}
+          </p>
+        )}
+        {diaries.isError && !diaries.data && (
+          <LoadFailed
+            error={diaries.error}
+            retrying={diaries.isFetching}
+            onRetry={() => void diaries.refetch()}
+          />
+        )}
+        {diaries.data && <MonthCalendar month={month} items={diaries.data} />}
+      </div>
       {diaries.data && (
-        <>
-          <MonthCalendar month={month} items={diaries.data} />
+        <div className="journal-month-entries" key={month}>
+          <div className="journal-section-heading">
+            <h3>{DIARY_TEXT.entriesTitle}</h3>
+            <span>{DIARY_TEXT.monthCount(diaries.data.length)}</span>
+          </div>
           {diaries.data.length === 0 ? (
-            <p className="py-6 text-center text-muted-foreground">{DIARY_TEXT.emptyMonth}</p>
+            <div className="journal-empty">
+              <span className="journal-empty-icon" aria-hidden="true">
+                <BookOpenIcon />
+              </span>
+              <p>{DIARY_TEXT.emptyMonth}</p>
+              <p className="journal-empty-note">{DIARY_TEXT.emptyMonthLead}</p>
+              <Button asChild variant="outline">
+                <Link to="/talk">
+                  {DIARY_TEXT.startTalking}
+                  <ArrowUpRightIcon aria-hidden="true" />
+                </Link>
+              </Button>
+            </div>
           ) : (
             // 달력은 날짜순이지만 목록은 최근 날이 위에 오는 편이 찾기 쉽다.
             <EntryList items={[...diaries.data].reverse()} withYear={false} />
           )}
-        </>
+        </div>
       )}
     </section>
   );
@@ -278,9 +304,18 @@ export function DiaryListPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="journal-page">
       <title>일기장 · 내일</title>
-      <h1 className="text-2xl leading-snug font-semibold">{DIARY_TEXT.listTitle}</h1>
+      <header className="journal-page-heading">
+        <div>
+          <p className="journal-eyebrow">{DIARY_TEXT.eyebrow}</p>
+          <h1>{DIARY_TEXT.listTitle}</h1>
+          <p className="journal-page-lead">{DIARY_TEXT.listLead}</p>
+        </div>
+        <span className="journal-heading-icon" aria-hidden="true">
+          <BookOpenIcon />
+        </span>
+      </header>
 
       {typeof notice === 'string' && (
         <p role="status" className="rounded-xl border bg-card px-5 py-4">
@@ -288,11 +323,11 @@ export function DiaryListPage() {
         </p>
       )}
 
-      <form role="search" onSubmit={handleSearch} noValidate className="flex flex-col gap-2">
+      <form role="search" onSubmit={handleSearch} noValidate className="journal-search-form">
         <label htmlFor={searchInputId} className="sr-only">
           {DIARY_TEXT.searchLabel}
         </label>
-        <div className="flex gap-2">
+        <div className="journal-search-field">
           <Input
             id={searchInputId}
             type="search"

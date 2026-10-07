@@ -8,10 +8,10 @@ import { deflateSync } from 'node:zlib';
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons');
 
-const SKY_TOP = [0xfc, 0xe8, 0xd8];
-const SKY_BOTTOM = [0xf0, 0xa5, 0x7e];
+const SKY_TOP = [0xe8, 0xed, 0xce];
+const SKY_BOTTOM = [0xa5, 0xc4, 0x8c];
 const SUN = [0xff, 0xfb, 0xf6];
-const GROUND = [0xb4, 0x53, 0x2d];
+const GROUND = [0x29, 0x4d, 0x3c];
 
 const HORIZON = 0.62;
 const SUN_RADIUS = 0.2;

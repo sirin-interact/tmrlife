@@ -54,13 +54,13 @@ export function Composer({ canSend, onSend, className }: ComposerProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className={cn('flex min-w-0 flex-col gap-1', className)}>
+    <form onSubmit={handleSubmit} className={cn('talk-composer', className)}>
       {tooLong && (
         <p id={errorId} role="alert" className="px-2 text-sm text-destructive">
           {TALK_TEXT.tooLong}
         </p>
       )}
-      <div className="flex items-end gap-2">
+      <div className="talk-composer__field">
         <label htmlFor={inputId} className="sr-only">
           {TALK_TEXT.inputLabel}
         </label>
@@ -76,14 +76,14 @@ export function Composer({ canSend, onSend, className }: ComposerProps) {
           aria-invalid={tooLong}
           aria-describedby={tooLong ? `${errorId} ${hintId}` : hintId}
           // 글자 크기를 16px 아래로 내리지 않는다. 더 작으면 iOS가 입력란에 초점이 갈 때 화면을 확대한다.
-          className="field-sizing-content max-h-40 min-h-12 w-full min-w-0 flex-1 resize-none rounded-3xl border border-input bg-card px-5 py-3 text-base leading-normal text-foreground placeholder:text-muted-foreground aria-invalid:border-destructive"
+          className="talk-composer__input field-sizing-content aria-invalid:border-destructive"
         />
         <Button
           type="submit"
           size="icon"
           disabled={!sendable}
           aria-label={TALK_TEXT.send}
-          className="rounded-full"
+          className="talk-composer__send"
         >
           <SendHorizontalIcon aria-hidden="true" />
         </Button>

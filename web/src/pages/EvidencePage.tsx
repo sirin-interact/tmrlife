@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ArrowLeftIcon, ArrowUpRightIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 
@@ -31,6 +32,7 @@ import { useNow } from '@/lib/useNow';
 import { useOnline } from '@/lib/useOnline';
 import { cn } from '@/lib/utils';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import '@/styles/journal.css';
 
 // 추세 화면의 점과 같은 말을 쓴다. 찬 점은 관찰됨, 빈 점은 이야기가 나왔고 괜찮았음, 작은 점은 말하지 않음이다.
 const DOT: Record<SignalStatus, string> = {
@@ -95,7 +97,7 @@ function EvidenceRow({ date, item, row, showJudgement }: EvidenceRowProps) {
       {row.evidence !== null && (
         <blockquote
           className={cn(
-            'border-l-2 border-border pl-4 leading-loose',
+            'journal-evidence-quote border-l-2 border-border pl-4 leading-loose',
             row.cancelled && 'text-muted-foreground',
           )}
         >
@@ -154,7 +156,7 @@ function ItemCard({ date, item }: { date: RecordDate; item: DaySignalItem }) {
   const merged = headerJudgement(item);
 
   return (
-    <li className="flex flex-col gap-3 rounded-2xl border bg-card px-5 py-4">
+    <li className="journal-evidence-card">
       <div className="flex items-start gap-3">
         <StatusDot status={item.status} />
         <div className="flex flex-col gap-0.5">
@@ -163,7 +165,7 @@ function ItemCard({ date, item }: { date: RecordDate; item: DaySignalItem }) {
         </div>
       </div>
       {rows.length > 0 && (
-        <ul className="flex flex-col gap-4 pl-6">
+        <ul className="journal-evidence-rows">
           {rows.map((row) => (
             <EvidenceRow
               key={row.id}
@@ -191,7 +193,7 @@ interface NotReadyProps {
 /** 아직 볼 것이 없는 날. 어떤 까닭이든 조용한 한 줄로 말하고, 끝없이 도는 표시를 남기지 않는다. */
 function NotReady({ title, body, hint, onRefresh, refreshing = false }: NotReadyProps) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border bg-card px-5 py-6">
+    <div className="journal-not-ready flex flex-col gap-3 rounded-2xl border bg-card px-5 py-6">
       <h2 className="text-lg leading-snug font-semibold">{title}</h2>
       <p className="text-muted-foreground">{body}</p>
       {hint !== undefined && <p className="text-muted-foreground">{hint}</p>}
@@ -284,18 +286,19 @@ function EvidenceForDate({ date }: { date: RecordDate }) {
   const loading = signals.isPending || (day?.analysed === false && diary.isPending);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="journal-page journal-evidence-page">
       <title>{EVIDENCE_TEXT.pageTitle(formatRecordDateShort(date))}</title>
-      <div className="flex flex-col gap-1">
+      <header className="journal-detail-heading">
         <p className="text-sm text-muted-foreground">
-          <Link to="/trend" className="underline underline-offset-4">
+          <Link to="/trend" className="journal-back-link">
+            <ArrowLeftIcon aria-hidden="true" />
             {EVIDENCE_TEXT.backToTrend}
           </Link>
         </p>
-        <h1 className="text-2xl leading-snug font-semibold">
+        <h1>
           <time dateTime={date}>{formatRecordDate(date)}</time>
         </h1>
-      </div>
+      </header>
 
       {loading && (
         <p role="status" className="animate-appear-late text-muted-foreground">
@@ -323,7 +326,7 @@ function EvidenceForDate({ date }: { date: RecordDate }) {
       {day?.analysed === true && (
         <div className="flex flex-col gap-4">
           <p className="text-muted-foreground">{EVIDENCE_TEXT.lead}</p>
-          <ul aria-label={EVIDENCE_TEXT.itemsLabel} className="flex flex-col gap-3">
+          <ul aria-label={EVIDENCE_TEXT.itemsLabel} className="journal-evidence-grid">
             {day.items.map((item) => (
               <ItemCard key={item.item} date={date} item={item} />
             ))}
@@ -338,12 +341,14 @@ function EvidenceForDate({ date }: { date: RecordDate }) {
       {(talked || isToday) && (
         <div className="flex flex-col items-start gap-2 border-t pt-4">
           {talked ? (
-            <Link to={`/diary/${date}`} className="underline underline-offset-4">
+            <Link to={`/diary/${date}`} className="journal-back-link">
               {EVIDENCE_TEXT.toDiary}
+              <ArrowUpRightIcon aria-hidden="true" />
             </Link>
           ) : (
-            <Link to="/talk" className="underline underline-offset-4">
+            <Link to="/talk" className="journal-back-link">
               {EVIDENCE_TEXT.toTalk}
+              <ArrowUpRightIcon aria-hidden="true" />
             </Link>
           )}
         </div>
