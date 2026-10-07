@@ -521,3 +521,27 @@ func TestLoadMigrationFrom(t *testing.T) {
 		assert.Contains(t, err.Error(), "LOG_LEVEL")
 	})
 }
+
+func TestVoiceSpeed(t *testing.T) {
+	t.Run("적지 않으면 조금 빠르게 읽는다", func(t *testing.T) {
+		cfg, err := LoadFrom(minimalEnv())
+		require.NoError(t, err)
+		assert.InDelta(t, 1.1, cfg.Voice.Speed, 1e-9)
+	})
+
+	t.Run("준 값을 따른다", func(t *testing.T) {
+		cfg, err := LoadFrom(with(minimalEnv(), "ELEVENLABS_SPEED", "0.95"))
+		require.NoError(t, err)
+		assert.InDelta(t, 0.95, cfg.Voice.Speed, 1e-9)
+	})
+
+	for _, value := range []string{"0.5", "1.5", "fast", "-1"} {
+		t.Run("공급자가 받지 않는 값은 뜨기 전에 막는다: "+value, func(t *testing.T) {
+			_, err := LoadFrom(with(minimalEnv(), "ELEVENLABS_SPEED", value))
+			var invalid *ValidationError
+			require.ErrorAs(t, err, &invalid)
+			require.Len(t, invalid.Problems, 1)
+			assert.Equal(t, "ELEVENLABS_SPEED", invalid.Problems[0].Var)
+		})
+	}
+}

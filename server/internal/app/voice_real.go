@@ -37,6 +37,7 @@ func (d *Deps) newRealVoiceProvider(ctx context.Context) (voice.Provider, error)
 		BaseURL: cfg.Voice.ElevenLabsURL,
 		VoiceID: cfg.Voice.VoiceID,
 		Model:   cfg.Voice.TTSModel,
+		Speed:   cfg.Voice.Speed,
 		Logger:  d.Logger,
 		Clock:   d.Clock,
 	})

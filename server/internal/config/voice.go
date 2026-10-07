@@ -41,6 +41,9 @@ type Voice struct {
 	VoiceID string
 	// TTSModel은 합성 모델이다.
 	TTSModel string
+	// Speed는 말하는 빠르기다. 1이 목소리의 원래 빠르기다. 목소리마다 빠르기가 달라서 목소리를 바꾸면 함께 맞춘다.
+	// 느린 목소리로는 짧은 문구도 십 초를 넘겨, 가장 무거운 순간의 말이 듣다가 놓칠 만큼 길어진다.
+	Speed float64
 
 	// BargeIn이 참이면 AI가 말하는 동안 사용자가 말을 시작할 때 재생을 끊는다.
 	// 스피커 소리가 마이크로 되돌아오는 기기에서는 끌 수 있다.
@@ -51,6 +54,9 @@ const (
 	// 인식기가 받는 끝점 대기의 범위다. 밖의 값은 공급자가 거절한다.
 	minEndpointDelay = 500 * time.Millisecond
 	maxEndpointDelay = 3 * time.Second
+	// 합성기가 받는 빠르기의 범위다. 밖의 값은 공급자가 거절한다.
+	minSpeechSpeed = 0.7
+	maxSpeechSpeed = 1.2
 )
 
 // loadVoice는 음성 설정을 읽는다. 공급자를 고르는 규칙은 Voice.Provider의 설명과 같다.
@@ -136,6 +142,14 @@ func loadVoice(r raw, prod, sonioxKeySet, elevenLabsKeySet bool) (Voice, []Probl
 		add("STT_MISHEAR_BELOW", "must be a number between 0 and 1 (0 turns the check off)")
 	default:
 		v.MishearBelow = float32(below)
+	}
+
+	speed, err := strconv.ParseFloat(strings.TrimSpace(r.ElevenLabsSpeed), 64)
+	switch {
+	case err != nil, speed < minSpeechSpeed, speed > maxSpeechSpeed:
+		add("ELEVENLABS_SPEED", "must be a number between 0.7 and 1.2")
+	default:
+		v.Speed = speed
 	}
 
 	bargeIn, err := strconv.ParseBool(strings.TrimSpace(r.VoiceBargeIn))
