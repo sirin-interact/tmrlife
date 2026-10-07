@@ -282,7 +282,6 @@ function DiaryForDate({ date }: { date: RecordDate }) {
             {DIARY_TEXT.backToList}
           </Link>
         </p>
-        <p className="journal-eyebrow">{DIARY_TEXT.eyebrow}</p>
         <h1>
           <time dateTime={date}>{formatRecordDate(date)}</time>
         </h1>

@@ -1,11 +1,10 @@
 import {
   BookOpenIcon,
+  ChartNoAxesColumnIcon,
   HouseIcon,
-  LeafIcon,
   LifeBuoyIcon,
   LogOutIcon,
   MicIcon,
-  SproutIcon,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useMatches } from 'react-router';
@@ -30,7 +29,7 @@ const menu = [
   { to: '/', label: '오늘', icon: HouseIcon },
   { to: '/talk', label: '이야기', icon: MicIcon },
   { to: '/diary', label: '일기장', icon: BookOpenIcon },
-  { to: '/trend', label: '변화 추세', icon: SproutIcon },
+  { to: '/trend', label: '변화 추세', icon: ChartNoAxesColumnIcon },
 ];
 
 export function AppShell() {
@@ -40,7 +39,6 @@ export function AppShell() {
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const { pathname } = useLocation();
   const mainRef = useRef<HTMLElement>(null);
-  const pageRef = useRef<HTMLDivElement>(null);
   const previousPathname = useRef(pathname);
   const handles = useMatches()
     .map((match) => match.handle)
@@ -55,19 +53,6 @@ export function AppShell() {
     previousPathname.current = pathname;
     mainRef.current?.focus({ preventScroll: true });
     document.scrollingElement?.scrollTo?.({ top: 0, behavior: 'instant' });
-  }, [pathname]);
-
-  // Animate the surface without remounting route guards, forms or live connections.
-  useEffect(() => {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    const animation = pageRef.current?.animate?.(
-      [
-        { opacity: 0, transform: 'translateY(10px)' },
-        { opacity: 1, transform: 'translateY(0)' },
-      ],
-      { duration: 400, easing: 'cubic-bezier(.2,.75,.25,1)' },
-    );
-    return () => animation?.cancel();
   }, [pathname]);
 
   function handleLogout() {
@@ -97,7 +82,6 @@ export function AppShell() {
               </span>
               <span>내일</span>
             </Link>
-            <p className="app-header-note">오늘의 나를 위한 작은 기록</p>
             <div className="app-header-actions">
               <NavLink to="/help" className="help-link">
                 <LifeBuoyIcon aria-hidden="true" className="size-4" />
@@ -119,9 +103,6 @@ export function AppShell() {
           </header>
           {signedIn && (
             <nav aria-label="주요 메뉴" className="app-navigation">
-              <p className="nav-eyebrow" aria-hidden="true">
-                나의 작은 쉼터
-              </p>
               <div className="nav-items">
                 {menu.map(({ to, label, icon: Icon }) => (
                   <NavLink
@@ -132,17 +113,8 @@ export function AppShell() {
                   >
                     <Icon aria-hidden="true" strokeWidth={1.7} className="size-5" />
                     <span>{label}</span>
-                    <span className="nav-active-dot" aria-hidden="true" />
                   </NavLink>
                 ))}
-              </div>
-              <div className="nav-note" aria-hidden="true">
-                <LeafIcon className="size-6" strokeWidth={1.3} />
-                <p>
-                  조금씩 쌓이는 오늘이
-                  <br />더 나은 내일이 되도록.
-                </p>
-                <span>말이 쌓여 내가 돼요.</span>
               </div>
             </nav>
           )}
@@ -169,7 +141,7 @@ export function AppShell() {
             {OFFLINE_MESSAGE}
           </p>
         )}
-        <div ref={pageRef} className={cn('page-entry', immersive && 'page-entry--immersive')}>
+        <div className={cn('page-entry', immersive && 'page-entry--immersive')}>
           <Outlet />
         </div>
       </main>

@@ -1,5 +1,3 @@
-import { ArrowRightIcon, LeafIcon } from 'lucide-react';
-import { BrandScene } from '@/components/BrandScene';
 import '@/styles/auth.css';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, useState } from 'react';
@@ -121,17 +119,15 @@ export function SignupPage() {
   ].filter((message) => message !== undefined);
 
   return (
-    <div className="auth-layout auth-layout--signup">
+    <div className="auth-layout">
       <title>가입하기 · 내일</title>
-      <BrandScene />
       <div className="auth-form-panel">
         <div className="auth-heading">
-          <span className="auth-heading__eyebrow">첫 장을 펴요</span>
           <h1 className="text-2xl leading-snug font-semibold">내일을 시작해요</h1>
           <p className="text-muted-foreground">오늘을 말하면, 내일이 보여요.</p>
         </div>
 
-        <Card className="auth-card">
+        <Card>
           <form
             onSubmit={(event) =>
               void handleSubmit(onValid, () => setSummary(FORM_INVALID_MESSAGE))(event)
@@ -255,9 +251,8 @@ export function SignupPage() {
 
             <CardFooter>
               <FormErrorSummary key={submitCount} message={summary} details={fieldMessages} />
-              <Button type="submit" size="lg" className="auth-submit w-full" disabled={!canSubmit}>
+              <Button type="submit" size="lg" className="w-full" disabled={!canSubmit}>
                 {signup.isPending ? '가입하고 있어요' : '가입하기'}
-                <ArrowRightIcon aria-hidden="true" className="size-4" />
               </Button>
               <MedicalNotice className="text-center" />
             </CardFooter>
@@ -273,10 +268,6 @@ export function SignupPage() {
           >
             로그인
           </Link>
-        </p>
-        <p className="auth-privacy">
-          <LeafIcon aria-hidden="true" className="size-3" />
-          나의 속도로, 편안하게 시작해요
         </p>
       </div>
     </div>

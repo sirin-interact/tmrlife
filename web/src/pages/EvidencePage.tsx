@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeftIcon, ArrowUpRightIcon } from 'lucide-react';
+import { ArrowLeftIcon, ChevronRightIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 
@@ -343,12 +343,12 @@ function EvidenceForDate({ date }: { date: RecordDate }) {
           {talked ? (
             <Link to={`/diary/${date}`} className="journal-back-link">
               {EVIDENCE_TEXT.toDiary}
-              <ArrowUpRightIcon aria-hidden="true" />
+              <ChevronRightIcon aria-hidden="true" />
             </Link>
           ) : (
             <Link to="/talk" className="journal-back-link">
               {EVIDENCE_TEXT.toTalk}
-              <ArrowUpRightIcon aria-hidden="true" />
+              <ChevronRightIcon aria-hidden="true" />
             </Link>
           )}
         </div>

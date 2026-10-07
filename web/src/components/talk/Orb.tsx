@@ -37,18 +37,9 @@ interface OrbProps {
 export function Orb({ mode, action, ref, className }: OrbProps) {
   const layers = (
     <span className="orb__scene" aria-hidden="true">
-      <span className="orb__halo" />
-      <span className="orb__orbit orb__orbit--outer" />
-      <span className="orb__orbit orb__orbit--inner" />
-      <span className="orb__ripple orb__ripple--one" />
+      <span className="orb__ripple" />
       <span className="orb__ripple orb__ripple--two" />
-      <span className="orb__body">
-        <span className="orb__light" />
-        <span className="orb__current orb__current--one" />
-        <span className="orb__current orb__current--two" />
-        <span className="orb__shine" />
-      </span>
-      <span className="orb__satellite" />
+      <span className="orb__body" />
     </span>
   );
 

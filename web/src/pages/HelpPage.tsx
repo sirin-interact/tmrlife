@@ -28,7 +28,6 @@ export function HelpPage() {
     <div className="support-page flex flex-col gap-6">
       <title>도움이 필요할 때 · 내일</title>
       <div className="flex flex-col gap-3">
-        <p className="eyebrow">혼자가 아니에요</p>
         <h1 className="text-2xl leading-snug font-semibold">{HELP_TEXT.title}</h1>
         <p className="leading-relaxed text-muted-foreground">{HELP_TEXT.lead}</p>
       </div>

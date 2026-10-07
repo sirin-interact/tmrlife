@@ -1,11 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  ArrowUpRightIcon,
-  BookOpenIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  SearchIcon,
-} from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from 'lucide-react';
 import { useId, useState, type FormEvent } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router';
 
@@ -66,9 +60,6 @@ function EntryList({ items, withYear }: EntryListProps) {
       {items.map((item) => (
         <li key={item.date}>
           <Link to={`/diary/${item.date}`} className="journal-entry">
-            <span className="journal-entry-day" aria-hidden="true">
-              {item.date.slice(-2)}
-            </span>
             <span className="journal-entry-content">
               <span className="journal-entry-date">
                 <time dateTime={item.date}>
@@ -207,16 +198,9 @@ function MonthView({ month, currentMonth }: { month: string; currentMonth: strin
           </div>
           {diaries.data.length === 0 ? (
             <div className="journal-empty">
-              <span className="journal-empty-icon" aria-hidden="true">
-                <BookOpenIcon />
-              </span>
               <p>{DIARY_TEXT.emptyMonth}</p>
-              <p className="journal-empty-note">{DIARY_TEXT.emptyMonthLead}</p>
               <Button asChild variant="outline">
-                <Link to="/talk">
-                  {DIARY_TEXT.startTalking}
-                  <ArrowUpRightIcon aria-hidden="true" />
-                </Link>
+                <Link to="/talk">{DIARY_TEXT.startTalking}</Link>
               </Button>
             </div>
           ) : (
@@ -307,14 +291,7 @@ export function DiaryListPage() {
     <div className="journal-page">
       <title>일기장 · 내일</title>
       <header className="journal-page-heading">
-        <div>
-          <p className="journal-eyebrow">{DIARY_TEXT.eyebrow}</p>
-          <h1>{DIARY_TEXT.listTitle}</h1>
-          <p className="journal-page-lead">{DIARY_TEXT.listLead}</p>
-        </div>
-        <span className="journal-heading-icon" aria-hidden="true">
-          <BookOpenIcon />
-        </span>
+        <h1>{DIARY_TEXT.listTitle}</h1>
       </header>
 
       {typeof notice === 'string' && (
