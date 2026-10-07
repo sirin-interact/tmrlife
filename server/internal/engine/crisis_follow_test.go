@@ -34,8 +34,8 @@ func assertNoHelpNumbers(t *testing.T, text string) {
 // 위기 고정 문구는 한 대화에서 그 단계의 첫 응답에만 쓴다.
 //
 // 같은 대화에서 최종 단계가 다시 대응 단계 이상이 되는 일은 흔하다. 그때마다 같은 글을 글자 그대로 다시 읽어 주면
-// "전화는 하기 싫어"라고 답한 사람이 같은 번호를 다시 듣게 된다. 고정 문구가 스스로 약속한
-// "저도 여기서 계속 들을게요"를 앱이 곧바로 어기는 모양이다.
+// "전화는 하기 싫어"라고 답한 사람이 같은 번호를 다시 듣게 된다. 듣는 쪽에 머물겠다는 앱이
+// 같은 안내만 되풀이하는 모양이다.
 func TestCrisisPhraseIsNotRepeatedInOneConversation(t *testing.T) {
 	t.Parallel()
 

@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,8 +72,23 @@ func TestFixedCopy(t *testing.T) {
 		p := c.CrisisRespond()
 		assert.Contains(t, p.Display, "109")
 		assert.Contains(t, p.Speech, "일공구")
-		assert.Contains(t, p.Display, "1577-0199")
-		assert.Contains(t, p.Speech, "일오칠칠에 공일구구")
+	})
+
+	// 이 말은 소리로 읽힌다. 일곱여덟 문장을 한 번에 읽으면 15초 가까이 이어져서, 가장 무거운 순간에 사람이 듣다가 놓친다.
+	// 말에서 뺀 번호는 화면에 고정되는 목록이 보여 준다.
+	t.Run("위기의 첫 응답은 네 문장을 넘기지 않고, 말에서 뺀 번호는 목록에 남아 있다", func(t *testing.T) {
+		for _, p := range []Phrase{c.CrisisRespond(), c.CrisisUrgent()} {
+			sentences := strings.Count(p.Speech, ".") + strings.Count(p.Speech, "?")
+			assert.LessOrEqual(t, sentences, 4, string(p.ID))
+			assert.LessOrEqual(t, utf8.RuneCountInString(p.Speech), 70, string(p.ID))
+			assert.Equal(t, strings.Count(p.Display, ".")+strings.Count(p.Display, "?"), sentences,
+				"화면의 글과 소리의 글은 같은 문장이어야 자막과 목소리가 어긋나지 않는다: %s", p.ID)
+		}
+		var listed []string
+		for _, r := range c.Resources() {
+			listed = append(listed, r.Phone)
+		}
+		assert.Contains(t, listed, "1577-0199")
 	})
 
 	t.Run("가장 급한 응답은 109와 119를 맨 앞 문장에 둔다", func(t *testing.T) {
@@ -86,7 +102,7 @@ func TestFixedCopy(t *testing.T) {
 	})
 
 	t.Run("가장 급한 응답은 곁에 있어 줄 사람을 지금 부르도록 권한다", func(t *testing.T) {
-		assert.Regexp(t, `사람을 지금 불러`, c.CrisisUrgent().Display)
+		assert.Regexp(t, `사람[을도] 지금 불러`, c.CrisisUrgent().Display)
 	})
 
 	t.Run("어느 문구도 허락을 구하거나 안내문처럼 말하지 않는다", func(t *testing.T) {
